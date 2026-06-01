@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/fieldse/osm-tools/internal/client"
+	"github.com/fieldse/osm-tools/internal/infer"
 	"github.com/fieldse/osm-tools/internal/osmerr"
 )
 
@@ -72,5 +73,42 @@ func TestCheckCmd_NoToken(t *testing.T) {
 	_, err := runCheckCmd(t, deps, "evil.com")
 	if !errors.Is(err, osmerr.ErrNoToken) {
 		t.Fatalf("want ErrNoToken, got %v", err)
+	}
+}
+
+func TestResolveCheckType(t *testing.T) {
+	tests := []struct {
+		name      string
+		id        string
+		typeFlag  string
+		ecosystem string
+		want      string
+		wantErr   bool
+	}{
+		{"package needs ecosystem error", "express", "", "", "", true},
+		{"package with ecosystem", "express", "", "npm", infer.TypePackage, false},
+		{"domain inferred, no ecosystem needed", "evil.com", "", "", infer.TypeDomain, false},
+		{"ip inferred", "1.2.3.4", "", "", infer.TypeIP, false},
+		{"explicit type override", "express", "domain", "", infer.TypeDomain, false},
+		{"explicit package still needs ecosystem", "whatever", "package", "", "", true},
+		{"unknown type flag", "x", "bogus", "", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveCheckType(tt.id, tt.typeFlag, tt.ecosystem)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("want error, got type %q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

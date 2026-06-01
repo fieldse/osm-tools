@@ -5,6 +5,8 @@ import (
 	"sort"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
 
 // poetryLock mirrors the subset of poetry.lock we need: the array of
@@ -32,7 +34,7 @@ func parsePoetryLock(path string) ([]Package, error) {
 		pkgs = append(pkgs, Package{
 			Name:      p.Name,
 			Version:   p.Version,
-			Ecosystem: EcosystemPyPI,
+			Ecosystem: ecosystem.PyPI,
 		})
 	}
 

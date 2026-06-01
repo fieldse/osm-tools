@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"reflect"
 	"testing"
+
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
 
 func TestParseRequirements(t *testing.T) {
@@ -18,15 +20,15 @@ func TestParseRequirements(t *testing.T) {
 			path: "testdata/requirements_basic.txt",
 			want: []Package{
 				// Sorted by Name. Range specifiers and bare names have empty Version.
-				{Name: "django", Version: "", Ecosystem: EcosystemPyPI},
-				{Name: "flask", Version: "2.3.0", Ecosystem: EcosystemPyPI},
-				{Name: "numpy", Version: "", Ecosystem: EcosystemPyPI},
-				{Name: "pytest", Version: "", Ecosystem: EcosystemPyPI},
-				{Name: "pyyaml", Version: "", Ecosystem: EcosystemPyPI},
-				{Name: "requests", Version: "2.31.0", Ecosystem: EcosystemPyPI},
-				{Name: "six", Version: "", Ecosystem: EcosystemPyPI},
-				{Name: "typing-extensions", Version: "4.5.0", Ecosystem: EcosystemPyPI},
-				{Name: "urllib3", Version: "", Ecosystem: EcosystemPyPI},
+				{Name: "django", Version: "", Ecosystem: ecosystem.PyPI},
+				{Name: "flask", Version: "2.3.0", Ecosystem: ecosystem.PyPI},
+				{Name: "numpy", Version: "", Ecosystem: ecosystem.PyPI},
+				{Name: "pytest", Version: "", Ecosystem: ecosystem.PyPI},
+				{Name: "pyyaml", Version: "", Ecosystem: ecosystem.PyPI},
+				{Name: "requests", Version: "2.31.0", Ecosystem: ecosystem.PyPI},
+				{Name: "six", Version: "", Ecosystem: ecosystem.PyPI},
+				{Name: "typing-extensions", Version: "4.5.0", Ecosystem: ecosystem.PyPI},
+				{Name: "urllib3", Version: "", Ecosystem: ecosystem.PyPI},
 			},
 		},
 		{
@@ -66,15 +68,15 @@ func TestParseRequirementLine(t *testing.T) {
 		wantPkg Package
 		wantOK  bool
 	}{
-		{"exact pin", "flask==2.3.0", Package{Name: "flask", Version: "2.3.0", Ecosystem: EcosystemPyPI}, true},
-		{"bare name", "pyyaml", Package{Name: "pyyaml", Ecosystem: EcosystemPyPI}, true},
-		{"ge specifier", "django>=4.0", Package{Name: "django", Ecosystem: EcosystemPyPI}, true},
-		{"compatible release", "numpy~=1.24", Package{Name: "numpy", Ecosystem: EcosystemPyPI}, true},
-		{"not equal", "urllib3!=1.26.0", Package{Name: "urllib3", Ecosystem: EcosystemPyPI}, true},
-		{"extras stripped", "requests[security]==2.0", Package{Name: "requests", Version: "2.0", Ecosystem: EcosystemPyPI}, true},
-		{"env marker stripped", "foo==1.0; python_version<'3.9'", Package{Name: "foo", Version: "1.0", Ecosystem: EcosystemPyPI}, true},
-		{"inline comment stripped", "bar==3.1  # pinned", Package{Name: "bar", Version: "3.1", Ecosystem: EcosystemPyPI}, true},
-		{"surrounding whitespace", "  baz==1.2  ", Package{Name: "baz", Version: "1.2", Ecosystem: EcosystemPyPI}, true},
+		{"exact pin", "flask==2.3.0", Package{Name: "flask", Version: "2.3.0", Ecosystem: ecosystem.PyPI}, true},
+		{"bare name", "pyyaml", Package{Name: "pyyaml", Ecosystem: ecosystem.PyPI}, true},
+		{"ge specifier", "django>=4.0", Package{Name: "django", Ecosystem: ecosystem.PyPI}, true},
+		{"compatible release", "numpy~=1.24", Package{Name: "numpy", Ecosystem: ecosystem.PyPI}, true},
+		{"not equal", "urllib3!=1.26.0", Package{Name: "urllib3", Ecosystem: ecosystem.PyPI}, true},
+		{"extras stripped", "requests[security]==2.0", Package{Name: "requests", Version: "2.0", Ecosystem: ecosystem.PyPI}, true},
+		{"env marker stripped", "foo==1.0; python_version<'3.9'", Package{Name: "foo", Version: "1.0", Ecosystem: ecosystem.PyPI}, true},
+		{"inline comment stripped", "bar==3.1  # pinned", Package{Name: "bar", Version: "3.1", Ecosystem: ecosystem.PyPI}, true},
+		{"surrounding whitespace", "  baz==1.2  ", Package{Name: "baz", Version: "1.2", Ecosystem: ecosystem.PyPI}, true},
 		{"blank line", "", Package{}, false},
 		{"full-line comment", "# a comment", Package{}, false},
 		{"include option", "-r other.txt", Package{}, false},

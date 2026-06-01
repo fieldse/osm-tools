@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"sort"
+
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
 
 // lockfile mirrors the subset of package-lock.json we need. Both the v2/v3
@@ -59,7 +61,7 @@ func parsePackageLock(path string) ([]Package, error) {
 			pkgs = append(pkgs, Package{
 				Name:      name,
 				Version:   version,
-				Ecosystem: EcosystemNPM,
+				Ecosystem: ecosystem.NPM,
 			})
 		}
 	} else {
@@ -68,7 +70,7 @@ func parsePackageLock(path string) ([]Package, error) {
 			pkgs = append(pkgs, Package{
 				Name:      name,
 				Version:   entry.Version,
-				Ecosystem: EcosystemNPM,
+				Ecosystem: ecosystem.NPM,
 			})
 		}
 	}

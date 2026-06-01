@@ -3,6 +3,8 @@ package parser
 import (
 	"sort"
 	"testing"
+
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
 
 func TestParsePoetryLock(t *testing.T) {
@@ -16,9 +18,9 @@ func TestParsePoetryLock(t *testing.T) {
 			name: "multiple package entries parsed and sorted",
 			path: "testdata/poetry_basic.lock",
 			want: []Package{
-				{Name: "click", Version: "8.1.7", Ecosystem: EcosystemPyPI},
-				{Name: "requests", Version: "2.31.0", Ecosystem: EcosystemPyPI},
-				{Name: "urllib3", Version: "2.0.7", Ecosystem: EcosystemPyPI},
+				{Name: "click", Version: "8.1.7", Ecosystem: ecosystem.PyPI},
+				{Name: "requests", Version: "2.31.0", Ecosystem: ecosystem.PyPI},
+				{Name: "urllib3", Version: "2.0.7", Ecosystem: ecosystem.PyPI},
 			},
 		},
 		{

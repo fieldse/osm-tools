@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
 
 func TestParsePackageLock(t *testing.T) {
@@ -19,18 +21,18 @@ func TestParsePackageLock(t *testing.T) {
 			// accepts/mime-types are transitive and excluded; express/lodash/jest
 			// resolve from node_modules; leftpad falls back to spec. Sorted.
 			want: []Package{
-				{Name: "express", Version: "4.18.2", Ecosystem: EcosystemNPM},
-				{Name: "jest", Version: "29.7.0", Ecosystem: EcosystemNPM},
-				{Name: "leftpad", Version: "^1.0.0", Ecosystem: EcosystemNPM},
-				{Name: "lodash", Version: "4.17.21", Ecosystem: EcosystemNPM},
+				{Name: "express", Version: "4.18.2", Ecosystem: ecosystem.NPM},
+				{Name: "jest", Version: "29.7.0", Ecosystem: ecosystem.NPM},
+				{Name: "leftpad", Version: "^1.0.0", Ecosystem: ecosystem.NPM},
+				{Name: "lodash", Version: "4.17.21", Ecosystem: ecosystem.NPM},
 			},
 		},
 		{
 			name: "v1 takes top-level dependencies map",
 			file: "lock_v1.json",
 			want: []Package{
-				{Name: "express", Version: "4.18.2", Ecosystem: EcosystemNPM},
-				{Name: "lodash", Version: "4.17.21", Ecosystem: EcosystemNPM},
+				{Name: "express", Version: "4.18.2", Ecosystem: ecosystem.NPM},
+				{Name: "lodash", Version: "4.17.21", Ecosystem: ecosystem.NPM},
 			},
 		},
 		{

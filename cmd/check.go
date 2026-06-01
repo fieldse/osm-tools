@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/fieldse/osm-tools/internal/client"
+	"github.com/fieldse/osm-tools/internal/infer"
 	"github.com/fieldse/osm-tools/internal/osmerr"
 	"github.com/fieldse/osm-tools/internal/output"
 	"github.com/spf13/cobra"
@@ -62,12 +63,12 @@ func runCheck(cmd *cobra.Command, deps *appDeps, identifier, typeFlag, ecosystem
 func resolveCheckType(identifier, typeFlag, ecosystem string) (string, error) {
 	kind := typeFlag
 	if kind == "" {
-		kind = inferType(identifier)
-	} else if !isSupportedType(kind) {
+		kind = infer.Type(identifier)
+	} else if !infer.IsSupported(kind) {
 		return "", osmerr.Usagef("unknown --type %q; must be one of package|domain|ip|docker", kind)
 	}
 
-	if kind == typePackage && ecosystem == "" {
+	if kind == infer.TypePackage && ecosystem == "" {
 		return "", osmerr.Usagef("package lookups require --ecosystem (e.g. -e npm); or set --type for a domain/ip/docker lookup")
 	}
 	return kind, nil

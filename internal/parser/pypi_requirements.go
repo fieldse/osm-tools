@@ -6,6 +6,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
 
 // exactPinSep is the only specifier we record as a Version; any other
@@ -74,7 +76,7 @@ func parseRequirementLine(line string) (Package, bool) {
 		return Package{}, false
 	}
 
-	return Package{Name: name, Version: version, Ecosystem: EcosystemPyPI}, true
+	return Package{Name: name, Version: version, Ecosystem: ecosystem.PyPI}, true
 }
 
 // splitNameSpecifier separates the package name from its version specifier.

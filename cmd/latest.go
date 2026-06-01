@@ -6,15 +6,11 @@ import (
 	"strings"
 
 	"github.com/fieldse/osm-tools/internal/client"
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 	"github.com/fieldse/osm-tools/internal/osmerr"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
-
-// supportedEcosystems are the free-tier ecosystems osm latest can query.
-var supportedEcosystems = []string{
-	"npm", "pypi", "maven", "nuget", "rubygems", "packagist", "crates", "go",
-}
 
 // newLatestCmd builds `osm latest` — recent verified threats per ecosystem.
 func newLatestCmd(deps *appDeps) *cobra.Command {
@@ -56,10 +52,10 @@ func runLatest(cmd *cobra.Command, deps *appDeps, ecosystemFlag string) error {
 }
 
 // selectEcosystems parses the comma-separated flag (no spaces) into a validated
-// list, defaulting to all supported ecosystems when empty.
+// list, defaulting to all recognized ecosystems when empty.
 func selectEcosystems(flag string) ([]string, error) {
 	if strings.TrimSpace(flag) == "" {
-		return supportedEcosystems, nil
+		return ecosystem.All(), nil
 	}
 
 	var out []string
@@ -68,24 +64,15 @@ func selectEcosystems(flag string) ([]string, error) {
 		if e == "" {
 			continue
 		}
-		if !isSupportedEcosystem(e) {
-			return nil, osmerr.Usagef("unknown ecosystem %q; valid: %s", e, strings.Join(supportedEcosystems, ", "))
+		if !ecosystem.IsValid(e) {
+			return nil, osmerr.Usagef("unknown ecosystem %q; valid: %s", e, strings.Join(ecosystem.All(), ", "))
 		}
 		out = append(out, e)
 	}
 	if len(out) == 0 {
-		return nil, osmerr.Usagef("no ecosystems given; valid: %s", strings.Join(supportedEcosystems, ", "))
+		return nil, osmerr.Usagef("no ecosystems given; valid: %s", strings.Join(ecosystem.All(), ", "))
 	}
 	return out, nil
-}
-
-func isSupportedEcosystem(e string) bool {
-	for _, s := range supportedEcosystems {
-		if s == e {
-			return true
-		}
-	}
-	return false
 }
 
 // fetchLatest queries each ecosystem concurrently and returns results grouped by

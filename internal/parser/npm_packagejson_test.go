@@ -3,6 +3,8 @@ package parser
 import (
 	"sort"
 	"testing"
+
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
 
 func TestParsePackageJSON(t *testing.T) {
@@ -16,17 +18,17 @@ func TestParsePackageJSON(t *testing.T) {
 			name: "dependencies and devDependencies merged and sorted",
 			path: "testdata/pkg_basic.json",
 			want: []Package{
-				{Name: "eslint", Version: "^9.0.0", Ecosystem: EcosystemNPM},
-				{Name: "express", Version: "^4.18.2", Ecosystem: EcosystemNPM},
-				{Name: "lodash", Version: "4.17.21", Ecosystem: EcosystemNPM},
-				{Name: "typescript", Version: "~5.4.0", Ecosystem: EcosystemNPM},
+				{Name: "eslint", Version: "^9.0.0", Ecosystem: ecosystem.NPM},
+				{Name: "express", Version: "^4.18.2", Ecosystem: ecosystem.NPM},
+				{Name: "lodash", Version: "4.17.21", Ecosystem: ecosystem.NPM},
+				{Name: "typescript", Version: "~5.4.0", Ecosystem: ecosystem.NPM},
 			},
 		},
 		{
 			name: "missing devDependencies",
 			path: "testdata/pkg_no_dev.json",
 			want: []Package{
-				{Name: "react", Version: "^18.2.0", Ecosystem: EcosystemNPM},
+				{Name: "react", Version: "^18.2.0", Ecosystem: ecosystem.NPM},
 			},
 		},
 		{

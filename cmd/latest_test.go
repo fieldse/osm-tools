@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/fieldse/osm-tools/internal/client"
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 	"github.com/fieldse/osm-tools/internal/osmerr"
 )
 
@@ -20,7 +21,7 @@ func TestSelectEcosystems(t *testing.T) {
 		wantLen int
 		wantErr bool
 	}{
-		{"empty means all", "", len(supportedEcosystems), false},
+		{"empty means all", "", len(ecosystem.All()), false},
 		{"single", "npm", 1, false},
 		{"multiple", "npm,pypi,maven", 3, false},
 		{"whitespace tolerated", " npm , pypi ", 2, false},

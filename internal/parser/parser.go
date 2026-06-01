@@ -13,14 +13,8 @@ import (
 type Package struct {
 	Name      string
 	Version   string // may be empty if the manifest pins no version
-	Ecosystem string // npm | pypi
+	Ecosystem string // an ecosystem.* identifier
 }
-
-// Ecosystem identifiers.
-const (
-	EcosystemNPM  = "npm"
-	EcosystemPyPI = "pypi"
-)
 
 // Parse reads the manifest at path and returns its direct dependencies. The
 // format is chosen by the file's base name; an unrecognized name is a usage

@@ -1,16 +1,17 @@
-package cmd
+// Package infer classifies a resource identifier into an OSM check type.
+package infer
 
 import (
 	"net"
 	"strings"
 )
 
-// supported check types.
+// Check types.
 const (
-	typePackage = "package"
-	typeDomain  = "domain"
-	typeIP      = "ip"
-	typeDocker  = "docker"
+	TypePackage = "package"
+	TypeDomain  = "domain"
+	TypeIP      = "ip"
+	TypeDocker  = "docker"
 )
 
 // dockerRegistryPrefixes are well-known registry hosts that mark an input as a
@@ -25,27 +26,24 @@ var dockerRegistryPrefixes = []string{
 	"mcr.microsoft.com/",
 }
 
-// inferType determines the check type from the input, applied in order:
+// Type determines the check type from the input, applied in order:
 //
 //	IP address           → ip
 //	contains ":" or a
 //	  known registry pfx → docker
 //	contains "."         → domain
 //	otherwise            → package (the default)
-//
-// hasEcosystem reports whether --ecosystem was provided; it does not change
-// inference but is used by validation downstream.
-func inferType(input string) string {
+func Type(input string) string {
 	if net.ParseIP(input) != nil {
-		return typeIP
+		return TypeIP
 	}
 	if strings.Contains(input, ":") || hasRegistryPrefix(input) {
-		return typeDocker
+		return TypeDocker
 	}
 	if strings.Contains(input, ".") {
-		return typeDomain
+		return TypeDomain
 	}
-	return typePackage
+	return TypePackage
 }
 
 func hasRegistryPrefix(input string) bool {
@@ -57,10 +55,10 @@ func hasRegistryPrefix(input string) bool {
 	return false
 }
 
-// isSupportedType reports whether t is a valid --type value.
-func isSupportedType(t string) bool {
+// IsSupported reports whether t is a valid check type.
+func IsSupported(t string) bool {
 	switch t {
-	case typePackage, typeDomain, typeIP, typeDocker:
+	case TypePackage, TypeDomain, TypeIP, TypeDocker:
 		return true
 	default:
 		return false

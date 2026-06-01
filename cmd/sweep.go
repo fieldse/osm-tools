@@ -44,7 +44,7 @@ func runSweep(cmd *cobra.Command, deps *appDeps, file, outputFmt string, failOnA
 	if err != nil {
 		return err
 	}
-	pkgs = dedupe(pkgs)
+	pkgs = parser.Dedupe(pkgs)
 
 	c, err := deps.apiClient()
 	if err != nil {

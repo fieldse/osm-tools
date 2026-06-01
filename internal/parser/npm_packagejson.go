@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"sort"
+
+	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
 
 // packageJSON is the minimal shape we read from a package.json manifest. Only
@@ -30,10 +32,10 @@ func parsePackageJSON(path string) ([]Package, error) {
 
 	pkgs := make([]Package, 0, len(manifest.Dependencies)+len(manifest.DevDependencies))
 	for name, version := range manifest.Dependencies {
-		pkgs = append(pkgs, Package{Name: name, Version: version, Ecosystem: EcosystemNPM})
+		pkgs = append(pkgs, Package{Name: name, Version: version, Ecosystem: ecosystem.NPM})
 	}
 	for name, version := range manifest.DevDependencies {
-		pkgs = append(pkgs, Package{Name: name, Version: version, Ecosystem: EcosystemNPM})
+		pkgs = append(pkgs, Package{Name: name, Version: version, Ecosystem: ecosystem.NPM})
 	}
 
 	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
