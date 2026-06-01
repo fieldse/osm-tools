@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/fieldse/osm-tools/internal/client"
 	"github.com/fieldse/osm-tools/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -44,6 +45,7 @@ func newRootCmd() *cobra.Command {
 
 	// Subcommands are registered as their phases land.
 	root.AddCommand(newConfigCmd())
+	root.AddCommand(newCheckCmd(deps))
 
 	return root
 }
@@ -70,5 +72,9 @@ func buildDeps(deps *appDeps, tokenFlag string) error {
 	if err == nil {
 		deps.token = token
 	}
+
+	// Shared rate limiter + HTTP client for all API-calling commands.
+	deps.limiter = client.NewLimiter(client.DefaultRPM)
+	deps.httpClient = client.NewRateLimitedClient(deps.limiter)
 	return nil
 }

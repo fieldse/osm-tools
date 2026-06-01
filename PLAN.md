@@ -111,12 +111,12 @@ One `client` package that `check`, `sweep`, and `latest` call into. Returns conc
 
 First user-facing slice. No cache. Calls `*client.Client` concretely.
 
-- [ ] 4.1 Type inference: ordered rules — IP pattern → `ip`; contains `:` or a known registry prefix → `docker`; contains `.` → `domain`; else `package` (open question: exact registry-prefix list, see open questions)
-- [ ] 4.2 `--type`/`-T` override: explicit flag short-circuits inference; validate it against the supported set (`package|domain|ip|docker`) → `*UsageError` on unknown
-- [ ] 4.3 Validation: `package` type with no `-e`/`--ecosystem` → `*UsageError` with the exact remedy in the message
-- [ ] 4.4 Detail-block formatter (`internal/output`): name, type, severity, description, tags, first_seen; takes a `CheckResult`, writes to an `io.Writer` (injected for test capture)
-- [ ] 4.5 Wire command: resolve type → build `Query` → `client.Check(ctx, q)` → render; exit `0` regardless of malicious verdict (lookup tool, not a gate). A 401 from the client surfaces as the auth-failure exit `1` via the mapper
-- [ ] 4.6 Tests: inference table (every spec example incl. the no-ecosystem error case); formatter golden output; command-level test with an `httptest`-backed client
+- [x] 4.1 Type inference: ordered rules — IP pattern → `ip`; contains `:` or a known registry prefix → `docker`; contains `.` → `domain`; else `package` (open question: exact registry-prefix list, see open questions)
+- [x] 4.2 `--type`/`-T` override: explicit flag short-circuits inference; validate it against the supported set (`package|domain|ip|docker`) → `*UsageError` on unknown
+- [x] 4.3 Validation: `package` type with no `-e`/`--ecosystem` → `*UsageError` with the exact remedy in the message
+- [x] 4.4 Detail-block formatter (`internal/output`): name, type, severity, description, tags, first_seen; takes a `CheckResult`, writes to an `io.Writer` (injected for test capture)
+- [x] 4.5 Wire command: resolve type → build `Query` → `client.Check(ctx, q)` → render; exit `0` regardless of malicious verdict (lookup tool, not a gate). A 401 from the client surfaces as the auth-failure exit `1` via the mapper
+- [x] 4.6 Tests: inference table (every spec example incl. the no-ecosystem error case); formatter golden output; command-level test with an `httptest`-backed client
 
 ### **5. cache**: 24h response cache + Lookup decorator
 
