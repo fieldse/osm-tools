@@ -1,5 +1,7 @@
 package cmd
 
+import "github.com/fieldse/osm-tools/internal/osmerr"
+
 // appDeps carries the resolved dependencies shared across subcommands. It is
 // built once in the root command's PersistentPreRunE (after flags are parsed)
 // and passed to subcommand constructors — there is no package-level global
@@ -14,4 +16,13 @@ type appDeps struct {
 
 	// baseURL is the OSM API base URL. Overridable for tests/staging.
 	baseURL string
+}
+
+// requireToken returns the resolved token or an actionable ErrNoToken. Commands
+// that call the API use this so the failure carries the remedy.
+func (d *appDeps) requireToken() (string, error) {
+	if d.token == "" {
+		return "", osmerr.ErrNoToken
+	}
+	return d.token, nil
 }

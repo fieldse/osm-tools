@@ -15,7 +15,7 @@ import (
 var (
 	// ErrNoToken means no API token could be resolved from any source
 	// (--token flag, OSM_API_KEY env, or config file).
-	ErrNoToken = errors.New("no API token configured")
+	ErrNoToken = errors.New("no API token found; run 'osm config', set OSM_API_KEY, or pass --token")
 
 	// ErrNotFound means the API reported the resource as unknown.
 	ErrNotFound = errors.New("resource not found")

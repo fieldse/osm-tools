@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"os"
 
+	"github.com/fieldse/osm-tools/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -41,15 +43,32 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().StringVarP(&tokenFlag, "token", "t", "", "OSM API token (overrides OSM_API_KEY and config file)")
 
 	// Subcommands are registered as their phases land.
+	root.AddCommand(newConfigCmd())
 
 	return root
 }
 
-// buildDeps populates appDeps from parsed flags and the environment. Token
-// resolution is wired in phase 2; for now it records the base URL and the raw
-// flag value.
+// buildDeps populates appDeps from parsed flags, the environment, and the
+// config file. It resolves the token but tolerates its absence: a missing token
+// is not fatal here because some commands (config, help) don't need one.
+// Commands that require auth check deps.token and fail with ErrNoToken.
 func buildDeps(deps *appDeps, tokenFlag string) error {
 	deps.baseURL = resolveBaseURL()
-	deps.token = tokenFlag
+
+	store, err := config.New()
+	if err != nil {
+		return err
+	}
+	cfg, err := store.Load()
+	if err != nil {
+		return err
+	}
+
+	// ResolveToken returns ErrNoToken when all sources are empty; that's
+	// acceptable at this stage, so swallow it and leave deps.token empty.
+	token, err := config.ResolveToken(tokenFlag, os.Getenv("OSM_API_KEY"), cfg.Token)
+	if err == nil {
+		deps.token = token
+	}
 	return nil
 }

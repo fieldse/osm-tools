@@ -89,11 +89,11 @@ Stand up the module, CLI skeleton, dependency wiring, and the error→exit contr
 
 Three separable concerns the draft merged. Keep file I/O, the masked prompt, and the precedence resolver distinct.
 
-- [ ] 2.1 Config store (`internal/config`): load/save `~/.osm/config.json`; create `~/.osm` with `0700` and the file with `0600`; tolerate a missing file (zero value), surface a parse error on corrupt file
-- [ ] 2.2 Auth resolver: pure function `ResolveToken(flag string, env, fileToken string) (string, error)` implementing precedence `--token` → `OSM_API_KEY` → config file; returns `ErrNoToken` when all empty — kept pure so it is trivially table-tested
-- [ ] 2.3 Wire resolution into root `PersistentPreRunE`: read flag + env + loaded config, call `ResolveToken`, stash on `appDeps`; commands that need auth fail fast with an actionable `ErrNoToken` message
-- [ ] 2.4 `osm config` command: masked terminal prompt (`golang.org/x/term` ReadPassword; the one justified non-stdlib addition for hidden input — note in deps), trim + reject empty, optionally sanity-check the `osm_` prefix as a warning (not a hard error), save via the config store, print the written path
-- [ ] 2.5 Tests: `ResolveToken` precedence table; config store round-trip + corrupt-file + perms (use `t.TempDir()`, override home dir via an injected path, not the real `~`)
+- [x] 2.1 Config store (`internal/config`): load/save `~/.osm/config.json`; create `~/.osm` with `0700` and the file with `0600`; tolerate a missing file (zero value), surface a parse error on corrupt file
+- [x] 2.2 Auth resolver: pure function `ResolveToken(flag string, env, fileToken string) (string, error)` implementing precedence `--token` → `OSM_API_KEY` → config file; returns `ErrNoToken` when all empty — kept pure so it is trivially table-tested
+- [x] 2.3 Wire resolution into root `PersistentPreRunE`: read flag + env + loaded config, call `ResolveToken`, stash on `appDeps`; commands that need auth fail fast with an actionable `ErrNoToken` message
+- [x] 2.4 `osm config` command: masked terminal prompt (`golang.org/x/term` ReadPassword; the one justified non-stdlib addition for hidden input — note in deps), trim + reject empty, optionally sanity-check the `osm_` prefix as a warning (not a hard error), save via the config store, print the written path
+- [x] 2.5 Tests: `ResolveToken` precedence table; config store round-trip + corrupt-file + perms (use `t.TempDir()`, override home dir via an injected path, not the real `~`)
 
 ### **3. API client**: typed client, rate-limited transport, error classification
 
