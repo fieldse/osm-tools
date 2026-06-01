@@ -81,3 +81,13 @@ Output: JSON.
 | `--token` | `-t` | all |
 | `--type` | `-T` | `check` |
 | `--fail-on-any` | — | `sweep` |
+
+## Development
+
+```sh
+make build    # build to bin/osm
+make test     # run tests
+make clean    # remove bin/
+```
+
+Also: `make test-race`, `make integration`, `make vet`, `make fmt`, `make lint`.
