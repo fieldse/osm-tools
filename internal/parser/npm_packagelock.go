@@ -24,14 +24,11 @@ type lockEntry struct {
 	DevDependencies map[string]string `json:"devDependencies"`
 }
 
-// parsePackageLock reads an npm package-lock.json and returns only its DIRECT
-// dependencies.
-//
-// For v2/v3 lockfiles it reads the direct dependency names from the root
-// packages[""] entry's dependencies + devDependencies, then resolves each to a
-// concrete version from packages["node_modules/<name>"].version, falling back to
-// the spec string when no installed entry exists. For v1 lockfiles (no
-// "packages" object) it best-effort takes the top-level "dependencies" map.
+// parsePackageLock reads an npm package-lock.json and returns only its direct
+// dependencies. In v2/v3, it extracts direct deps from packages[""].dependencies
+// and .devDependencies, then resolves each to its concrete version from
+// packages["node_modules/<name>"].version (or falls back to the spec string).
+// In v1, it takes the top-level "dependencies" map.
 func parsePackageLock(path string) ([]Package, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -45,7 +42,7 @@ func parsePackageLock(path string) ([]Package, error) {
 
 	var pkgs []Package
 	if lf.Packages != nil {
-		// v2/v3: the root "" entry names the direct deps.
+		// v2/v3: extract direct deps from root "" entry.
 		root := lf.Packages[""]
 		direct := make(map[string]string)
 		for name, spec := range root.Dependencies {
@@ -66,7 +63,7 @@ func parsePackageLock(path string) ([]Package, error) {
 			})
 		}
 	} else {
-		// v1: no "packages" object; best-effort take top-level dependencies.
+		// v1: take top-level dependencies.
 		for name, entry := range lf.Dependencies {
 			pkgs = append(pkgs, Package{
 				Name:      name,

@@ -14,8 +14,7 @@ const (
 )
 
 // dockerRegistryPrefixes are well-known registry hosts that mark an input as a
-// container image even when no tag is present. (Open question in PLAN: confirm
-// the authoritative list against OSM docs.)
+// container image even when no tag is present.
 var dockerRegistryPrefixes = []string{
 	"docker.io/",
 	"ghcr.io/",

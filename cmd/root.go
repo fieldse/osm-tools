@@ -43,7 +43,6 @@ func newRootCmd() *cobra.Command {
 
 	root.PersistentFlags().StringVarP(&tokenFlag, "token", "t", "", "OSM API token (overrides OSM_API_KEY and config file)")
 
-	// Subcommands are registered as their phases land.
 	root.AddCommand(newConfigCmd())
 	root.AddCommand(newCheckCmd(deps))
 	root.AddCommand(newSweepCmd(deps))

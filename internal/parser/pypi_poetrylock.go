@@ -20,9 +20,7 @@ type poetryPackage struct {
 }
 
 // parsePoetryLock reads a poetry.lock (TOML) and returns every [[package]]
-// entry as a Package in the pypi ecosystem. Versions in poetry.lock are exact
-// pins, so they are used verbatim. The result is sorted by Name for
-// determinism.
+// entry as a Package, with versions used verbatim. The result is sorted by Name.
 func parsePoetryLock(path string) ([]Package, error) {
 	var lock poetryLock
 	if _, err := toml.DecodeFile(path, &lock); err != nil {

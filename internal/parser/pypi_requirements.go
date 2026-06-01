@@ -12,15 +12,12 @@ import (
 // comparison operator pins a range, which we leave empty.
 const exactPinSep = "=="
 
-// nonExactSpecifiers are the comparison operators that pin a range rather than
-// an exact version. When one is present we capture the name but leave Version
-// empty. Order matters: longer operators are checked before their single-char
-// prefixes so that ">=" is not mistaken for ">".
+// nonExactSpecifiers are range-pinning operators. When present, only the name
+// is captured; Version stays empty. Order matters: longer ops checked first.
 var nonExactSpecifiers = []string{">=", "<=", "~=", "!=", "===", ">", "<"}
 
 // parseRequirements reads a pip requirements.txt file and returns its direct
-// dependencies. Only file-read failures are returned as errors; malformed
-// individual lines are skipped so a single junk line cannot abort the parse.
+// dependencies. Only file-read errors are returned; malformed lines are skipped.
 func parseRequirements(path string) ([]Package, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -61,12 +58,11 @@ func parseRequirementLine(line string) (Package, bool) {
 		return Package{}, false
 	}
 
-	// Drop environment markers (everything after ';').
+	// Drop environment markers (after ';').
 	if i := strings.Index(line, ";"); i >= 0 {
 		line = strings.TrimSpace(line[:i])
 	}
 
-	// Split name (with optional extras) from the version specifier.
 	name, version := splitNameSpecifier(line)
 
 	// Strip extras in brackets: requests[security] -> requests.
@@ -82,27 +78,25 @@ func parseRequirementLine(line string) (Package, bool) {
 }
 
 // splitNameSpecifier separates the package name from its version specifier.
-// It returns the version only for an exact (==) pin; every other specifier
-// yields an empty version. A bare name yields an empty version.
+// Returns version only for exact (==) pins; other specifiers yield empty version.
 func splitNameSpecifier(line string) (name, version string) {
-	// Exact pin wins: capture the version after ==.
+	// Exact pin: capture version after ==.
 	if i := strings.Index(line, exactPinSep); i >= 0 {
 		name = line[:i]
 		version = strings.TrimSpace(line[i+len(exactPinSep):])
-		// A trailing range op (e.g. "==1.0,>=0.9") is not an exact pin.
+		// Trailing range op (e.g. "==1.0,>=0.9") is not an exact pin.
 		if j := strings.IndexAny(version, ",;"); j >= 0 {
 			version = strings.TrimSpace(version[:j])
 		}
 		return name, version
 	}
 
-	// Any other comparison operator: name only, empty version.
+	// Any other operator: name only, empty version.
 	for _, op := range nonExactSpecifiers {
 		if i := strings.Index(line, op); i >= 0 {
 			return line[:i], ""
 		}
 	}
 
-	// Bare name, no specifier.
 	return line, ""
 }

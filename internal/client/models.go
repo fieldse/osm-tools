@@ -1,8 +1,7 @@
 package client
 
 // CheckResult is the response from GET /check-malicious. Field names follow the
-// OSM custom JSON schema; tags are confirmed against the API guide and should be
-// re-verified against a live response before locking (see PLAN open questions).
+// documented schema; verify against a live API response before locking.
 type CheckResult struct {
 	Malicious     bool     `json:"malicious"`
 	SeverityLevel string   `json:"severity_level"`
@@ -21,8 +20,7 @@ type Details struct {
 	ThreatID string `json:"threat_id"`
 }
 
-// LatestThreat is one entry from GET /query-latest. Shape is modeled on the
-// documented fields; verify against a live response (PLAN open question 7.4).
+// LatestThreat is one entry from GET /query-latest.
 type LatestThreat struct {
 	Ecosystem     string   `json:"ecosystem"`
 	Package       string   `json:"package"`

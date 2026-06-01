@@ -13,8 +13,6 @@ import (
 // built once in the root command's PersistentPreRunE (after flags are parsed)
 // and passed to subcommand constructors — there is no package-level global
 // state and no init()-time wiring.
-//
-// Phase 5 will add a cache-backed lookup for sweep; check uses the bare client.
 type appDeps struct {
 	// token is the resolved API token (--token → OSM_API_KEY → config file).
 	token string

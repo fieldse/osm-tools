@@ -9,10 +9,10 @@ import (
 
 func TestResolveToken(t *testing.T) {
 	tests := []struct {
-		name              string
-		flag, env, file   string
-		want              string
-		wantErr           bool
+		name            string
+		flag, env, file string
+		want            string
+		wantErr         bool
 	}{
 		{"flag wins over all", "flagtok", "envtok", "filetok", "flagtok", false},
 		{"env wins over file", "", "envtok", "filetok", "envtok", false},
