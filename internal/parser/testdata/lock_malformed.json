@@ -1,0 +1,6 @@
+{
+  "name": "broken-app",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "dependencies": {

@@ -1,0 +1,6 @@
+# only comments and blanks here
+
+# nothing to parse
+
+-r base.txt
+--hash=sha256:abc123
