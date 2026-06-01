@@ -37,6 +37,15 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("API error: status %d: %s", e.StatusCode, e.Body)
 }
 
+// IsAuth reports whether the API rejected the token (401/403).
+func (e *APIError) IsAuth() bool { return e.StatusCode == 401 || e.StatusCode == 403 }
+
+// IsRateLimit reports whether the API throttled the request (429).
+func (e *APIError) IsRateLimit() bool { return e.StatusCode == 429 }
+
+// IsServer reports whether the API returned a server-side error (5xx).
+func (e *APIError) IsServer() bool { return e.StatusCode >= 500 }
+
 // UsageError is a user-input problem: bad flag, unknown ecosystem, unreadable
 // or unrecognized manifest. It maps to exit code 2. The message should carry
 // the remedy.

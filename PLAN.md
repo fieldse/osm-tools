@@ -99,13 +99,13 @@ Three separable concerns the draft merged. Keep file I/O, the masked prompt, and
 
 One `client` package that `check`, `sweep`, and `latest` call into. Returns concrete structs; no interface defined here.
 
-- [ ] 3.1 Response models: `CheckResult` (`Malicious`, `SeverityLevel`, `Description`, `Tags`, `FirstSeen`, `LastSeen`, `LastOSMScore`, `LastScannedAt`, `ScanCount`, `ThreatID` from `details.threat_id`); `LatestThreat` — field names/JSON tags confirmed against a live response, but model the documented fields now
-- [ ] 3.2 `Query` request type for check: `{Type, Identifier, Ecosystem, Version}`; map CLI `docker` → API `report_type=container` here, at the boundary
-- [ ] 3.3 `Client` constructor: takes base URL, token, and an `*http.Client`; sets Bearer auth per-request; `New(...)` returns `*Client` (struct, not interface)
-- [ ] 3.4 Rate-limited `RoundTripper`: wraps a base transport, calls `limiter.Wait(ctx)` before each round trip; limiter injected so it can be shared and so tests can use a permissive limiter
-- [ ] 3.5 Endpoints: `Check(ctx, Query) (CheckResult, error)` → `GET /check-malicious`; `QueryLatest(ctx, ecosystem) ([]LatestThreat, error)` → `GET /query-latest`
-- [ ] 3.6 Error classification: non-2xx → `*APIError` with status + body; 401→auth, 429→rate-limit (surface `Retry-After` if present), 5xx→server; network/transport errors wrapped with `%w` and classified as operational; JSON decode errors wrapped distinctly
-- [ ] 3.7 Tests (`httptest`): 200 (malicious true/false), 401, 429 (+Retry-After), 5xx, network failure (closed server), malformed-JSON body — assert each maps to the right error category via `errors.As`
+- [x] 3.1 Response models: `CheckResult` (`Malicious`, `SeverityLevel`, `Description`, `Tags`, `FirstSeen`, `LastSeen`, `LastOSMScore`, `LastScannedAt`, `ScanCount`, `ThreatID` from `details.threat_id`); `LatestThreat` — field names/JSON tags confirmed against a live response, but model the documented fields now
+- [x] 3.2 `Query` request type for check: `{Type, Identifier, Ecosystem, Version}`; map CLI `docker` → API `report_type=container` here, at the boundary
+- [x] 3.3 `Client` constructor: takes base URL, token, and an `*http.Client`; sets Bearer auth per-request; `New(...)` returns `*Client` (struct, not interface)
+- [x] 3.4 Rate-limited `RoundTripper`: wraps a base transport, calls `limiter.Wait(ctx)` before each round trip; limiter injected so it can be shared and so tests can use a permissive limiter
+- [x] 3.5 Endpoints: `Check(ctx, Query) (CheckResult, error)` → `GET /check-malicious`; `QueryLatest(ctx, ecosystem) ([]LatestThreat, error)` → `GET /query-latest`
+- [x] 3.6 Error classification: non-2xx → `*APIError` with status + body; 401→auth, 429→rate-limit (surface `Retry-After` if present), 5xx→server; network/transport errors wrapped with `%w` and classified as operational; JSON decode errors wrapped distinctly
+- [x] 3.7 Tests (`httptest`): 200 (malicious true/false), 401, 429 (+Retry-After), 5xx, network failure (closed server), malformed-JSON body — assert each maps to the right error category via `errors.As`
 
 ### **4. check**: single lookup with type inference
 
