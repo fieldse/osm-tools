@@ -22,18 +22,19 @@ func CheckDetail(w io.Writer, label, kind string, r client.CheckResult) {
 	fmt.Fprintf(w, "%s (%s)\n", label, kind)
 	fmt.Fprintf(w, "  status:      %s\n", status)
 
-	// For clean results the remaining fields are typically empty; only print
-	// what carries signal.
-	if r.SeverityLevel != "" {
-		fmt.Fprintf(w, "  severity:    %s\n", r.SeverityLevel)
+	// Threat metadata lives in Details; for clean results it's empty, so only
+	// print what carries signal.
+	d := r.Details
+	if d.SeverityLevel != "" {
+		fmt.Fprintf(w, "  severity:    %s\n", d.SeverityLevel)
 	}
-	if r.Description != "" {
-		fmt.Fprintf(w, "  description: %s\n", r.Description)
+	if d.Description != "" {
+		fmt.Fprintf(w, "  description: %s\n", d.Description)
 	}
-	if len(r.Tags) > 0 {
-		fmt.Fprintf(w, "  tags:        %s\n", strings.Join(r.Tags, ", "))
+	if len(d.Tags) > 0 {
+		fmt.Fprintf(w, "  tags:        %s\n", strings.Join(d.Tags, ", "))
 	}
-	if r.FirstSeen != "" {
-		fmt.Fprintf(w, "  first_seen:  %s\n", r.FirstSeen)
+	if d.FirstSeen != "" {
+		fmt.Fprintf(w, "  first_seen:  %s\n", d.FirstSeen)
 	}
 }

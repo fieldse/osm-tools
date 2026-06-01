@@ -14,6 +14,7 @@ func newCheckCmd(deps *appDeps) *cobra.Command {
 		ecosystem string
 		version   string
 		typeFlag  string
+		debug     bool
 	)
 
 	cmd := &cobra.Command{
@@ -21,18 +22,19 @@ func newCheckCmd(deps *appDeps) *cobra.Command {
 		Short: "Look up a package, domain, IP, or container image",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd, deps, args[0], typeFlag, ecosystem, version)
+			return runCheck(cmd, deps, args[0], typeFlag, ecosystem, version, debug)
 		},
 	}
 
 	cmd.Flags().StringVarP(&ecosystem, "ecosystem", "e", "", "package ecosystem (npm, pypi, …); required for package lookups")
 	cmd.Flags().StringVar(&version, "version", "", "package version (optional)")
 	cmd.Flags().StringVarP(&typeFlag, "type", "T", "", "explicit type: package|domain|ip|docker (overrides inference)")
+	cmd.Flags().BoolVar(&debug, "debug", false, "print the API request and response status to stderr")
 
 	return cmd
 }
 
-func runCheck(cmd *cobra.Command, deps *appDeps, identifier, typeFlag, ecosystem, version string) error {
+func runCheck(cmd *cobra.Command, deps *appDeps, identifier, typeFlag, ecosystem, version string, debug bool) error {
 	kind, err := resolveCheckType(identifier, typeFlag, ecosystem)
 	if err != nil {
 		return err
@@ -41,6 +43,9 @@ func runCheck(cmd *cobra.Command, deps *appDeps, identifier, typeFlag, ecosystem
 	c, err := deps.apiClient()
 	if err != nil {
 		return err
+	}
+	if debug {
+		c.SetDebug(cmd.ErrOrStderr())
 	}
 
 	res, err := c.Check(cmd.Context(), client.Query{

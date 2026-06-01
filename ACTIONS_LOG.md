@@ -9,3 +9,7 @@
 - 2026-06-02 change - **phase 7 latest**: added `osm latest`, which pulls the most recently flagged threats for chosen ecosystems (or all) and prints them as JSON
 - 2026-06-02 change - **structure cleanup**: moved type-guessing and the list of known ecosystems out of the command layer into their own focused pieces, and removed a duplicated helper, after a structural review
 - 2026-06-02 change - **phase 8 hardening**: added end-to-end tests that run the real program, a timing test proving request pacing works, refreshed the docs, and confirmed a clean build before release
+- 2026-06-02 change - **check command debug**: added a `--debug` flag to `check` that prints the API request and response status (never the token)
+- 2026-06-02 change - **dropped .env**: removed the unused .env convention the program never read; documented the export and `osm config` paths instead
+- 2026-06-02 change - **build script**: added build.sh that compiles the tool into ./bin
+- 2026-06-02 bug - **wrong API base path and response shapes**: live calls 404'd because the base URL and the check/latest response field layouts were modeled from notes, not the real API; corrected against the live docs and verified working

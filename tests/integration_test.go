@@ -56,7 +56,7 @@ func run(t *testing.T, bin, baseURL string, args ...string) (string, int) {
 func TestSmoke_Check(t *testing.T) {
 	bin := buildBinary(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"malicious":true,"severity_level":"critical"}`))
+		w.Write([]byte(`{"malicious":true,"details":{"severity_level":"critical"}}`))
 	}))
 	defer srv.Close()
 
@@ -73,7 +73,7 @@ func TestSmoke_SweepGate(t *testing.T) {
 	bin := buildBinary(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("resource_identifier") == "evil" {
-			w.Write([]byte(`{"malicious":true,"severity_level":"high"}`))
+			w.Write([]byte(`{"malicious":true,"details":{"severity_level":"high"}}`))
 			return
 		}
 		w.Write([]byte(`{"malicious":false}`))
@@ -101,7 +101,7 @@ func TestSmoke_SweepGate(t *testing.T) {
 func TestSmoke_Latest(t *testing.T) {
 	bin := buildBinary(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`[{"ecosystem":"npm","package":"bad","version":"1.0.0","threat_id":"t-1"}]`))
+		w.Write([]byte(`{"ecosystem":"npm","count":1,"threats":[{"id":"t-1","package_name":"bad","version_info":"1.0.0"}]}`))
 	}))
 	defer srv.Close()
 

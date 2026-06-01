@@ -12,7 +12,7 @@ import (
 // defaultBaseURL is the OSM API base. Overridable via OSM_BASE_URL for tests
 // and staging (kept as an env seam rather than a public flag to avoid
 // expanding the CLI surface).
-const defaultBaseURL = "https://api.opensourcemalware.com/v1"
+const defaultBaseURL = "https://api.opensourcemalware.com/functions/v1"
 
 // Execute builds the command tree and runs it with the given context. It
 // returns the error from command execution so that main owns the exit-code

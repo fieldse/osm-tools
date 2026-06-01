@@ -6,7 +6,7 @@ A Go CLI tool for querying the OpenSourceMalware.com free API. Three commands: `
 
 **Auth:** Bearer token via `OSM_API_KEY` env var, `--token` flag, or saved via `osm config`.  
 **Auth precedence:** `--token` flag → `OSM_API_KEY` env var → `~/.osm/config.json`  
-**Base URL:** `https://api.opensourcemalware.com/v1`  
+**Base URL:** `https://api.opensourcemalware.com/functions/v1`  
 **Rate limit:** 60 req/min — token-bucket limiter; sweep responses cached 24h to `~/.osm/cache.json`.
 
 ---

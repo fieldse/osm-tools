@@ -11,11 +11,13 @@ import (
 func TestCheckDetail_Malicious(t *testing.T) {
 	var buf bytes.Buffer
 	CheckDetail(&buf, "evil", "package", client.CheckResult{
-		Malicious:     true,
-		SeverityLevel: "critical",
-		Description:   "credential stealer",
-		Tags:          []string{"stealer", "npm"},
-		FirstSeen:     "2026-05-01",
+		Malicious: true,
+		Details: client.Details{
+			SeverityLevel: "critical",
+			Description:   "credential stealer",
+			Tags:          []string{"stealer", "npm"},
+			FirstSeen:     "2026-05-01",
+		},
 	})
 
 	out := buf.String()

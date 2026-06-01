@@ -1,10 +1,12 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/fieldse/osm-tools/internal/osmerr"
@@ -26,7 +28,7 @@ func TestCheck_MaliciousTrue(t *testing.T) {
 		if got := r.Header.Get("Authorization"); got != "Bearer osm_test" {
 			t.Errorf("auth header = %q", got)
 		}
-		w.Write([]byte(`{"malicious":true,"severity_level":"critical","details":{"threat_id":"t-1"}}`))
+		w.Write([]byte(`{"malicious":true,"details":{"id":"t-1","severity_level":"critical"}}`))
 	}))
 	defer srv.Close()
 
@@ -34,7 +36,7 @@ func TestCheck_MaliciousTrue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.Malicious || res.SeverityLevel != "critical" || res.Details.ThreatID != "t-1" {
+	if !res.Malicious || res.Details.SeverityLevel != "critical" || res.Details.ID != "t-1" {
 		t.Errorf("unexpected result: %+v", res)
 	}
 }
@@ -141,12 +143,39 @@ func TestCheck_NetworkFailure(t *testing.T) {
 	}
 }
 
+func TestCheck_DebugLogging(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"malicious":false}`))
+	}))
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	c := newTestClient(t, srv)
+	c.SetDebug(&buf)
+
+	if _, err := c.Check(context.Background(), Query{Type: "package", Identifier: "express", Ecosystem: "npm"}); err != nil {
+		t.Fatal(err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "→ GET") || !strings.Contains(out, "/check-malicious") {
+		t.Errorf("debug missing request line:\n%s", out)
+	}
+	if !strings.Contains(out, "← 200") {
+		t.Errorf("debug missing response status:\n%s", out)
+	}
+	// The token must never be logged.
+	if strings.Contains(out, "osm_test") || strings.Contains(out, "Bearer") {
+		t.Errorf("debug leaked the token:\n%s", out)
+	}
+}
+
 func TestQueryLatest(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.Query().Get("ecosystem"); got != "npm" {
 			t.Errorf("ecosystem = %q, want npm", got)
 		}
-		w.Write([]byte(`[{"ecosystem":"npm","package":"evil","version":"1.0.0","threat_id":"t-9"}]`))
+		w.Write([]byte(`{"ecosystem":"npm","count":1,"threats":[{"id":"t-9","package_name":"evil","version_info":"1.0.0"}]}`))
 	}))
 	defer srv.Close()
 
@@ -154,7 +183,7 @@ func TestQueryLatest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res) != 1 || res[0].Package != "evil" || res[0].ThreatID != "t-9" {
+	if len(res) != 1 || res[0].PackageName != "evil" || res[0].ID != "t-9" {
 		t.Errorf("unexpected result: %+v", res)
 	}
 }

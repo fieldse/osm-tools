@@ -39,7 +39,7 @@ func runCheckCmd(t *testing.T, deps *appDeps, args ...string) (string, error) {
 
 func TestCheckCmd_MaliciousPackage(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"malicious":true,"severity_level":"high","description":"bad"}`))
+		w.Write([]byte(`{"malicious":true,"details":{"severity_level":"high","description":"bad"}}`))
 	}))
 	defer srv.Close()
 

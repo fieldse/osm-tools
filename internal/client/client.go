@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/fieldse/osm-tools/internal/osmerr"
 )
@@ -21,6 +22,13 @@ type Client struct {
 	baseURL string
 	token   string
 	http    *http.Client
+	debug   io.Writer // when non-nil, each request is logged here
+}
+
+// SetDebug enables request/response logging to w. The Bearer token is never
+// logged. Pass nil to disable.
+func (c *Client) SetDebug(w io.Writer) {
+	c.debug = w
 }
 
 // New builds a Client. baseURL is the API root (no trailing slash required),
@@ -63,11 +71,11 @@ func (c *Client) QueryLatest(ctx context.Context, ecosystem string) ([]LatestThr
 	params := url.Values{}
 	params.Set("ecosystem", ecosystem)
 
-	var result []LatestThreat
-	if err := c.getJSON(ctx, "/query-latest", params, &result); err != nil {
+	var resp LatestResponse
+	if err := c.getJSON(ctx, "/query-latest", params, &resp); err != nil {
 		return nil, err
 	}
-	return result, nil
+	return resp.Threats, nil
 }
 
 // getJSON issues a GET, classifies the response, and decodes the body into dst.
@@ -84,12 +92,24 @@ func (c *Client) getJSON(ctx context.Context, path string, params url.Values, ds
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/json")
 
+	if c.debug != nil {
+		fmt.Fprintf(c.debug, "→ GET %s\n", u)
+	}
+
+	start := time.Now()
 	resp, err := c.http.Do(req)
 	if err != nil {
+		if c.debug != nil {
+			fmt.Fprintf(c.debug, "← error after %s: %v\n", time.Since(start).Round(time.Millisecond), err)
+		}
 		// Network/transport failure (or a cancelled context). Operational.
 		return fmt.Errorf("request to %s: %w", path, err)
 	}
 	defer resp.Body.Close()
+
+	if c.debug != nil {
+		fmt.Fprintf(c.debug, "← %s (%s)\n", resp.Status, time.Since(start).Round(time.Millisecond))
+	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return classifyError(resp)

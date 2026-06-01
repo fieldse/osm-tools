@@ -26,7 +26,7 @@ func sweepServer(t *testing.T, malicious map[string]bool, calls *int64) *httptes
 		}
 		name := r.URL.Query().Get("resource_identifier")
 		if malicious[name] {
-			w.Write([]byte(`{"malicious":true,"severity_level":"high"}`))
+			w.Write([]byte(`{"malicious":true,"details":{"severity_level":"high"}}`))
 			return
 		}
 		w.Write([]byte(`{"malicious":false}`))

@@ -51,7 +51,7 @@ func TestSelectEcosystems(t *testing.T) {
 func TestLatest_FetchAndGroup(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		eco := r.URL.Query().Get("ecosystem")
-		w.Write([]byte(`[{"ecosystem":"` + eco + `","package":"evil-` + eco + `","version":"1.0.0","threat_id":"t-` + eco + `"}]`))
+		w.Write([]byte(`{"ecosystem":"` + eco + `","count":1,"threats":[{"id":"t-` + eco + `","package_name":"evil-` + eco + `","version_info":"1.0.0"}]}`))
 	}))
 	defer srv.Close()
 
@@ -60,17 +60,17 @@ func TestLatest_FetchAndGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(grouped["npm"]) != 1 || grouped["npm"][0].Package != "evil-npm" {
+	if len(grouped["npm"]) != 1 || grouped["npm"][0].PackageName != "evil-npm" {
 		t.Errorf("npm group wrong: %+v", grouped["npm"])
 	}
-	if len(grouped["pypi"]) != 1 || grouped["pypi"][0].Package != "evil-pypi" {
+	if len(grouped["pypi"]) != 1 || grouped["pypi"][0].PackageName != "evil-pypi" {
 		t.Errorf("pypi group wrong: %+v", grouped["pypi"])
 	}
 }
 
 func TestLatestCmd_JSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`[{"ecosystem":"npm","package":"evil","version":"1.0.0","threat_id":"t-1"}]`))
+		w.Write([]byte(`{"ecosystem":"npm","count":1,"threats":[{"id":"t-1","package_name":"evil","version_info":"1.0.0"}]}`))
 	}))
 	defer srv.Close()
 

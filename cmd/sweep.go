@@ -99,8 +99,8 @@ func toRows(results []sweepResult) (rows []output.SweepRow, hits []string) {
 			Package:   r.Package.Name,
 			Version:   r.Package.Version,
 			Status:    status,
-			Severity:  r.Result.SeverityLevel,
-			FirstSeen: r.Result.FirstSeen,
+			Severity:  r.Result.Details.SeverityLevel,
+			FirstSeen: r.Result.Details.FirstSeen,
 		})
 	}
 	return rows, hits

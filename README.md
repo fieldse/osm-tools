@@ -10,13 +10,17 @@ go install github.com/fieldse/osm-tools@latest
 
 ## Setup
 
+Get a free key at [opensourcemalware.com](https://opensourcemalware.com), then provide it one of three ways:
+
 ```sh
-osm config
+osm config                      # prompt + save to ~/.osm/config.json (persists across shells)
+export OSM_API_KEY=osm_...       # current shell only
+osm check evil.com --token osm_...   # one-off
 ```
 
-Prompts for your API key and saves it to `~/.osm/config.json`. Get a free key at [opensourcemalware.com](https://opensourcemalware.com).
-
 **Auth precedence:** `--token` flag → `OSM_API_KEY` env var → `~/.osm/config.json`
+
+> `osm` does not read `.env` files — set the environment variable yourself or use `osm config`.
 
 ## Commands
 

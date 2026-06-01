@@ -76,7 +76,7 @@ func TestFlushAndReload(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cache.json")
 
 	c1 := NewWithPath(path)
-	c1.Set("k", client.CheckResult{SeverityLevel: "high"})
+	c1.Set("k", client.CheckResult{Details: client.Details{SeverityLevel: "high"}})
 	if err := c1.Flush(); err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestFlushAndReload(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := c2.Get("k")
-	if !ok || got.SeverityLevel != "high" {
+	if !ok || got.Details.SeverityLevel != "high" {
 		t.Errorf("reloaded entry = %+v, ok=%v", got, ok)
 	}
 }
