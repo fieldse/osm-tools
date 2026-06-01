@@ -122,11 +122,11 @@ First user-facing slice. No cache. Calls `*client.Client` concretely.
 
 Built before sweep; sweep is the only consumer. Cache sits *outside* the client so hits never burn a rate token.
 
-- [ ] 5.1 Cache store (`internal/cache`): keyed by `type:ecosystem:name:version`, value = `CheckResult` + `StoredAt`; backed by `~/.osm/cache.json`; tolerate missing/corrupt file (treat as empty, log-and-continue, never fail the command)
-- [ ] 5.2 TTL: entries older than 24h are misses; lazy expiry on read (don't rewrite the file just to evict)
-- [ ] 5.3 Caching decorator: a type wrapping any `lookup` (the consumer-side interface) — on `Check`, compute key, return fresh cache hit, else delegate, then write-back. Concurrency: the in-memory map is guarded by a `sync.RWMutex`; the file is read once at start and flushed once at end of a sweep (not per-write) to avoid write storms
-- [ ] 5.4 Decide flush strategy explicitly: load-on-construct, hold in memory under the mutex during the run, persist once on sweep completion (including partial results on cancellation). Document that `check` does not use the cache at all
-- [ ] 5.5 Tests: TTL boundary (just-under / just-over 24h via injected clock — pass a `now func() time.Time`), corrupt-file tolerance, decorator hit/miss/write-back, concurrent access under `-race`
+- [x] 5.1 Cache store (`internal/cache`): keyed by `type:ecosystem:name:version`, value = `CheckResult` + `StoredAt`; backed by `~/.osm/cache.json`; tolerate missing/corrupt file (treat as empty, log-and-continue, never fail the command)
+- [x] 5.2 TTL: entries older than 24h are misses; lazy expiry on read (don't rewrite the file just to evict)
+- [x] 5.3 Caching decorator: a type wrapping any `lookup` (the consumer-side interface) — on `Check`, compute key, return fresh cache hit, else delegate, then write-back. Concurrency: the in-memory map is guarded by a `sync.RWMutex`; the file is read once at start and flushed once at end of a sweep (not per-write) to avoid write storms
+- [x] 5.4 Decide flush strategy explicitly: load-on-construct, hold in memory under the mutex during the run, persist once on sweep completion (including partial results on cancellation). Document that `check` does not use the cache at all
+- [x] 5.5 Tests: TTL boundary (just-under / just-over 24h via injected clock — pass a `now func() time.Time`), corrupt-file tolerance, decorator hit/miss/write-back, concurrent access under `-race`
 
 ### **6. sweep**: manifest scan for CI gates
 
