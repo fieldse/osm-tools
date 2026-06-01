@@ -46,6 +46,7 @@ func newRootCmd() *cobra.Command {
 	// Subcommands are registered as their phases land.
 	root.AddCommand(newConfigCmd())
 	root.AddCommand(newCheckCmd(deps))
+	root.AddCommand(newSweepCmd(deps))
 
 	return root
 }

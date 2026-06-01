@@ -6,8 +6,10 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// DefaultRPM is the free-tier rate limit: 60 requests per minute.
-const DefaultRPM = 60
+// DefaultRPM is the request rate the CLI paces itself to. The free-tier ceiling
+// is 60/min; we default to 30/min (a 2-second gap between requests) to stay
+// comfortably under the limit.
+const DefaultRPM = 30
 
 // rateLimitedTransport wraps a base RoundTripper and blocks on a shared limiter
 // before each request. Putting throttling in the transport means every request

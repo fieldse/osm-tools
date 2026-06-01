@@ -1,0 +1,22 @@
+# Project dependencies
+flask==2.3.0
+requests[security]==2.31.0   # inline comment
+
+# range specifiers leave version empty
+django>=4.0
+numpy~=1.24
+urllib3!=1.26.0
+pytest<8.0
+six>1.10
+
+# bare name, no version
+pyyaml
+
+# environment marker
+typing-extensions==4.5.0; python_version<'3.9'
+
+# option / include lines (all skipped)
+-r other-requirements.txt
+-c constraints.txt
+--hash=sha256:deadbeef
+-e git+https://example.com/repo.git#egg=somepkg

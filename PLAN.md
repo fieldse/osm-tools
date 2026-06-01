@@ -132,19 +132,19 @@ Built before sweep; sweep is the only consumer. Cache sits *outside* the client 
 
 The concurrency-heavy phase. Make the fan-out model explicit.
 
-- [ ] 6.1 Parser dispatch (`internal/parser`): `Parse(path) ([]Package, error)` where format is chosen by filename; `Package{Name, Version, Ecosystem}` is the domain type owned here (must not import `client`); unknown filename → `*UsageError`
-- [ ] 6.2 `package.json` parser: `dependencies` + `devDependencies` only; ecosystem `npm`
-- [ ] 6.3 `package-lock.json` parser: direct deps only (not the full resolved tree); ecosystem `npm`
-- [ ] 6.4 `requirements.txt` parser: name + pinned version; skip comments, blank lines, and `-r`/`-c` includes; ecosystem `pypi`
-- [ ] 6.5 `poetry.lock` parser: top-level `[[package]]` entries; ecosystem `pypi`
-- [ ] 6.6 Dedupe: collapse identical `name+version+ecosystem` into a unique set before any API calls
-- [ ] 6.7 Fan-out model: use `errgroup.Group` with `g.SetLimit(N)` to bound in-flight goroutines (N small, e.g. 8 — the rate limiter is the real throttle, the bound just caps memory/socket use). Each goroutine calls the **cache-backed `lookup`**; the shared rate-limited transport serializes actual network egress at 60/min. Derive a child context from the command context; `errgroup` cancels siblings when a worker returns a hard error (network/5xx/auth). A `malicious: true` result is **not** an error — it does not cancel the group; collect it
-- [ ] 6.8 Result collection + ordering: workers write into a pre-sized `[]Result` slice indexed by input position (no shared-append races, deterministic output), or into a channel drained by a single collector. Preserve manifest order in output regardless of completion order
-- [ ] 6.9 Table output (`internal/output`): `package | version | status | severity | first_seen`, all packages shown including clean ones; write to injected `io.Writer`
-- [ ] 6.10 JSON output (`-o json`): valid JSON array of results; validate `-o` value (`table|json`) → `*UsageError` on unknown
-- [ ] 6.11 Exit semantics: any hard error (network/5xx/auth/unreadable manifest) → operational exit `1` (and cancel remaining work). Clean run → exit `0` + summary. `--fail-on-any` with ≥1 hit → return the `GateTriggered` signal → exit `3`. The mapper in `main` owns the code; sweep only returns the right typed value
-- [ ] 6.12 Cache flush: persist the cache once on completion (and on context cancellation, flush what was gathered) per the decorator's decided strategy
-- [ ] 6.13 Tests: each parser against fixture files (incl. malformed/edge cases); dedupe; concurrent fan-out under `-race` with an `httptest` server; gate exit-code behaviour (clean vs hit vs network failure) via the mapper
+- [x] 6.1 Parser dispatch (`internal/parser`): `Parse(path) ([]Package, error)` where format is chosen by filename; `Package{Name, Version, Ecosystem}` is the domain type owned here (must not import `client`); unknown filename → `*UsageError`
+- [x] 6.2 `package.json` parser: `dependencies` + `devDependencies` only; ecosystem `npm`
+- [x] 6.3 `package-lock.json` parser: direct deps only (not the full resolved tree); ecosystem `npm`
+- [x] 6.4 `requirements.txt` parser: name + pinned version; skip comments, blank lines, and `-r`/`-c` includes; ecosystem `pypi`
+- [x] 6.5 `poetry.lock` parser: top-level `[[package]]` entries; ecosystem `pypi`
+- [x] 6.6 Dedupe: collapse identical `name+version+ecosystem` into a unique set before any API calls
+- [x] 6.7 Fan-out model: use `errgroup.Group` with `g.SetLimit(N)` to bound in-flight goroutines (N small, e.g. 8 — the rate limiter is the real throttle, the bound just caps memory/socket use). Each goroutine calls the **cache-backed `lookup`**; the shared rate-limited transport serializes actual network egress at 60/min. Derive a child context from the command context; `errgroup` cancels siblings when a worker returns a hard error (network/5xx/auth). A `malicious: true` result is **not** an error — it does not cancel the group; collect it
+- [x] 6.8 Result collection + ordering: workers write into a pre-sized `[]Result` slice indexed by input position (no shared-append races, deterministic output), or into a channel drained by a single collector. Preserve manifest order in output regardless of completion order
+- [x] 6.9 Table output (`internal/output`): `package | version | status | severity | first_seen`, all packages shown including clean ones; write to injected `io.Writer`
+- [x] 6.10 JSON output (`-o json`): valid JSON array of results; validate `-o` value (`table|json`) → `*UsageError` on unknown
+- [x] 6.11 Exit semantics: any hard error (network/5xx/auth/unreadable manifest) → operational exit `1` (and cancel remaining work). Clean run → exit `0` + summary. `--fail-on-any` with ≥1 hit → return the `GateTriggered` signal → exit `3`. The mapper in `main` owns the code; sweep only returns the right typed value
+- [x] 6.12 Cache flush: persist the cache once on completion (and on context cancellation, flush what was gathered) per the decorator's decided strategy
+- [x] 6.13 Tests: each parser against fixture files (incl. malformed/edge cases); dedupe; concurrent fan-out under `-race` with an `httptest` server; gate exit-code behaviour (clean vs hit vs network failure) via the mapper
 
 ### **7. latest**: recent-threat feed
 

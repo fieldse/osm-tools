@@ -3,6 +3,7 @@ package cmd
 import (
 	"net/http"
 
+	"github.com/fieldse/osm-tools/internal/cache"
 	"github.com/fieldse/osm-tools/internal/client"
 	"github.com/fieldse/osm-tools/internal/osmerr"
 	"golang.org/x/time/rate"
@@ -28,6 +29,18 @@ type appDeps struct {
 	// httpClient is the rate-limited HTTP client built from limiter. Injectable
 	// so tests can point the client at an httptest server.
 	httpClient *http.Client
+
+	// cachePath overrides the sweep cache location. Empty means the default
+	// (~/.osm/cache.json); tests set it to a temp path.
+	cachePath string
+}
+
+// newCache builds the sweep cache, honoring a test override path.
+func (d *appDeps) newCache() (*cache.Cache, error) {
+	if d.cachePath != "" {
+		return cache.NewWithPath(d.cachePath), nil
+	}
+	return cache.New()
 }
 
 // requireToken returns the resolved token or an actionable ErrNoToken. Commands
