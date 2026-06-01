@@ -20,7 +20,12 @@ func newCheckCmd(deps *appDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check <identifier>",
 		Short: "Look up a package, domain, IP, or container image",
-		Args:  cobra.ExactArgs(1),
+		Long: "Look up a package, domain, IP, or container image against OSM.\n\n" +
+			"Package names must match the registry exactly, including the npm scope:\n" +
+			"  @scope/name is matched; dropping @ or the scope is not.\n" +
+			"An unrecognized name returns not-malicious, so CLEAN means \"not in OSM's\n" +
+			"database,\" not \"verified safe\" — a typo'd or unscoped name will look clean.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCheck(cmd, deps, args[0], typeFlag, ecosystem, version, debug)
 		},

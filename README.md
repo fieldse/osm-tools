@@ -31,6 +31,7 @@ Ad-hoc lookup for a package, domain, IP, or Docker image.
 ```sh
 osm check express -e npm
 osm check express -e npm --version 4.18.2
+osm check @scope/pkg -e npm           # scoped npm package — include the full @scope/name
 osm check evil.com
 osm check 1.2.3.4
 osm check nginx:latest
@@ -38,6 +39,8 @@ osm check express -T package -e npm   # explicit type override
 ```
 
 Type is inferred from the input: IP pattern → `ip`, contains `:` → `docker`, contains `.` → `domain`, everything else → `package` (requires `-e`).
+
+> **Package names must match the registry exactly.** Use the published identifier, including the npm scope. `@fb-deposit/form-deposit` is matched; `fb-deposit/form-deposit` (missing `@`) and `form-deposit` (missing scope) are not. A name OSM doesn't recognize comes back **not malicious** — i.e. `CLEAN` here means "not in OSM's database," not "verified safe." A typo'd or unscoped name will look clean.
 
 ### `osm sweep`
 
