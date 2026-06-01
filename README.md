@@ -44,7 +44,7 @@ osm sweep -f package.json
 osm sweep -f requirements.txt
 osm sweep -f package-lock.json
 osm sweep -f poetry.lock
-osm sweep -f package.json --fail-on-any   # exit 1 if any hit
+osm sweep -f package.json --fail-on-any   # non-zero exit if any hit (CI gate)
 osm sweep -f package.json -o json         # JSON array output
 ```
 

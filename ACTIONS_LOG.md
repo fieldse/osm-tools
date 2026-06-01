@@ -8,3 +8,4 @@
 - 2026-06-02 change - **phase 6 sweep**: added `osm sweep`, which reads a dependency file, checks every package at once, prints the results, and can fail a CI build if anything's malicious
 - 2026-06-02 change - **phase 7 latest**: added `osm latest`, which pulls the most recently flagged threats for chosen ecosystems (or all) and prints them as JSON
 - 2026-06-02 change - **structure cleanup**: moved type-guessing and the list of known ecosystems out of the command layer into their own focused pieces, and removed a duplicated helper, after a structural review
+- 2026-06-02 change - **phase 8 hardening**: added end-to-end tests that run the real program, a timing test proving request pacing works, refreshed the docs, and confirmed a clean build before release

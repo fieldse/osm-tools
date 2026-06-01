@@ -156,11 +156,11 @@ The concurrency-heavy phase. Make the fan-out model explicit.
 
 ### **8. Hardening**: integration, docs, release
 
-- [ ] 8.1 End-to-end smoke test: build the binary, run `check`/`sweep`/`latest` against an `httptest` server wired via base-URL override (env or hidden flag) — exercises the real cobra path, not just unit seams
-- [ ] 8.2 Rate-limiter integration test: drive many concurrent requests through the real transport and assert no burst exceeds 60/min (sample request timestamps; use a faster limiter rate in test to keep it quick)
-- [ ] 8.3 Error-message audit: actionable text for missing token (`ErrNoToken`), bad ecosystem, unreadable/unknown manifest, auth failure — assert remediation is in the message
-- [ ] 8.4 Docs: confirm every README example runs; align CLAUDE.md architecture block with final structure (note: CLAUDE.md still lists a `watch.go` command that is out of scope — remove it)
-- [ ] 8.5 Release: `go build ./...` clean, `go vet ./...`, `go test -race ./...` green, tag `v0.1.0`
+- [x] 8.1 End-to-end smoke test: build the binary, run `check`/`sweep`/`latest` against an `httptest` server wired via base-URL override (env or hidden flag) — exercises the real cobra path, not just unit seams
+- [x] 8.2 Rate-limiter integration test: drive many concurrent requests through the real transport and assert no burst exceeds 60/min (sample request timestamps; use a faster limiter rate in test to keep it quick)
+- [x] 8.3 Error-message audit: actionable text for missing token (`ErrNoToken`), bad ecosystem, unreadable/unknown manifest, auth failure — assert remediation is in the message
+- [x] 8.4 Docs: confirm every README example runs; align CLAUDE.md architecture block with final structure (note: CLAUDE.md still lists a `watch.go` command that is out of scope — remove it)
+- [ ] 8.5 Release: `go build ./...` clean, `go vet ./...`, `go test -race ./...` green, tag `v0.1.0` (build/vet/test green; tag pending merge to main)
 
 ---
 
