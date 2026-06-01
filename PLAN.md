@@ -77,13 +77,13 @@ Note exit `3`: a malicious hit under `--fail-on-any` is a *successful run with a
 
 Stand up the module, CLI skeleton, dependency wiring, and the error→exit contract everything else returns through.
 
-- [ ] 1.1 Init module: `go mod init github.com/fieldse/osm-tools`, target Go 1.26; add `github.com/spf13/cobra` and `golang.org/x/time/rate`
-- [ ] 1.2 `main.go`: build root signal context (`signal.NotifyContext` on SIGINT/SIGTERM), call `cmd.Execute(ctx)`, and map the returned error to an exit code via the single mapping function
-- [ ] 1.3 Root command (`cmd/root.go`): persistent `--token`/`-t` flag, base-URL constant; `PersistentPreRunE` resolves token + constructs `appDeps` (deferred token resolution until phase 2 lands)
-- [ ] 1.4 Dependency wiring: define `appDeps` struct (resolved token, `*client.Client`, shared rate limiter, optional cache-backed `lookup`); subcommand constructors take `*appDeps` — no package-level globals, no `init()` state
-- [ ] 1.5 Error taxonomy: `osmerr` package (or co-located) with sentinels `ErrNoToken`/`ErrNotFound`, typed `*APIError`, `*UsageError`, and the `GateTriggered` signal for sweep
-- [ ] 1.6 Exit-code mapper in `main`: `0` success, `1` operational, `2` usage, `3` gate-triggered; this is the only place exit codes are decided
-- [ ] 1.7 Unit test: exit-code mapper table (each error category → expected code)
+- [x] 1.1 Init module: `go mod init github.com/fieldse/osm-tools`, target Go 1.26; add `github.com/spf13/cobra` and `golang.org/x/time/rate`
+- [x] 1.2 `main.go`: build root signal context (`signal.NotifyContext` on SIGINT/SIGTERM), call `cmd.Execute(ctx)`, and map the returned error to an exit code via the single mapping function
+- [x] 1.3 Root command (`cmd/root.go`): persistent `--token`/`-t` flag, base-URL constant; `PersistentPreRunE` resolves token + constructs `appDeps` (deferred token resolution until phase 2 lands)
+- [x] 1.4 Dependency wiring: define `appDeps` struct (resolved token, `*client.Client`, shared rate limiter, optional cache-backed `lookup`); subcommand constructors take `*appDeps` — no package-level globals, no `init()` state
+- [x] 1.5 Error taxonomy: `osmerr` package (or co-located) with sentinels `ErrNoToken`/`ErrNotFound`, typed `*APIError`, `*UsageError`, and the `GateTriggered` signal for sweep
+- [x] 1.6 Exit-code mapper in `main`: `0` success, `1` operational, `2` usage, `3` gate-triggered; this is the only place exit codes are decided
+- [x] 1.7 Unit test: exit-code mapper table (each error category → expected code)
 
 ### **2. Config & auth**: persistence, prompt, resolution
 
