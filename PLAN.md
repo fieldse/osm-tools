@@ -148,11 +148,11 @@ The concurrency-heavy phase. Make the fan-out model explicit.
 
 ### **7. latest**: recent-threat feed
 
-- [ ] 7.1 Ecosystem flag: `-e npm,pypi` comma-separated; empty = all 8 (`npm,pypi,maven,nuget,rubygems,packagist,crates,go`)
-- [ ] 7.2 Validation: unknown ecosystem value → `*UsageError` listing valid options (exit `2`)
-- [ ] 7.3 Fetch: one `QueryLatest(ctx, eco)` per selected ecosystem; for multiple ecosystems use `errgroup` (same shared rate limiter throttles egress) — but cancellation-on-error and ordered, per-ecosystem result assembly mirror sweep
-- [ ] 7.4 JSON output: default shape decided after inspecting a live response — see open questions; until then model as grouped-by-ecosystem (`{ "npm": [...], "pypi": [...] }`) since the API is inherently per-ecosystem
-- [ ] 7.5 Tests: ecosystem parsing/validation table; multi-ecosystem fetch against `httptest`
+- [x] 7.1 Ecosystem flag: `-e npm,pypi` comma-separated; empty = all 8 (`npm,pypi,maven,nuget,rubygems,packagist,crates,go`)
+- [x] 7.2 Validation: unknown ecosystem value → `*UsageError` listing valid options (exit `2`)
+- [x] 7.3 Fetch: one `QueryLatest(ctx, eco)` per selected ecosystem; for multiple ecosystems use `errgroup` (same shared rate limiter throttles egress) — but cancellation-on-error and ordered, per-ecosystem result assembly mirror sweep
+- [x] 7.4 JSON output: default shape decided after inspecting a live response — see open questions; until then model as grouped-by-ecosystem (`{ "npm": [...], "pypi": [...] }`) since the API is inherently per-ecosystem
+- [x] 7.5 Tests: ecosystem parsing/validation table; multi-ecosystem fetch against `httptest`
 
 ### **8. Hardening**: integration, docs, release
 
