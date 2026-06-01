@@ -1,0 +1,21 @@
+CLAUDE.md
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Go
+/osm
+*.exe
+*.test
+*.out
+vendor/
+go.work
+go.work.sum
+
+# Claude
+.claude/
+
+# Environment
+.env
