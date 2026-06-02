@@ -38,14 +38,7 @@ osm check nginx:latest
 osm check express -T package -e npm   # explicit type override
 ```
 
-Type is inferred from the input ([supported asset types](https://docs.opensourcemalware.com/asset-types)):
-
-| Input looks like | Inferred type |
-|---|---|
-| IP address | `ip` |
-| Contains `.` | `domain` |
-| Contains `:` | `docker` |
-| Anything else | `package` (requires `-e`) |
+**Types:** Inferred from the input — IPs, domains, and Docker images are detected automatically; anything else is treated as a package. Use `-T` to be explicit: `package`, `domain`, `ip`, `docker`. See [supported asset types](https://docs.opensourcemalware.com/asset-types).
 
 > **Package names must match the registry exactly.** A clean result means "not in the database," not "verified safe." A typo'd or unscoped name will silently appear clean.
 
@@ -64,6 +57,8 @@ osm sweep -f package.json -o json         # JSON output
 
 Supported manifests: `package.json`, `package-lock.json`, `requirements.txt`, `poetry.lock`. Direct dependencies only.
 
+Requests are paced at 30/min (half the API ceiling) — large manifests will take a moment.
+
 ### `osm latest`
 
 Returns the 100 most recent verified threats per ecosystem.
@@ -75,6 +70,18 @@ osm latest -e npm,pypi,maven
 ```
 
 Supported ecosystems: `npm`, `pypi`, `maven`, `nuget`, `rubygems`, `packagist`, `crates`, `go` — [full list](https://docs.opensourcemalware.com/asset-types)
+
+### Flags
+
+| Flag | Short | Commands | Description |
+|---|---|---|---|
+| `--token` | `-t` | all | API key |
+| `--ecosystem` | `-e` | `check`, `latest` | Package ecosystem (e.g. `npm`, `pypi`) |
+| `--type` | `-T` | `check` | Asset type override (`package`, `domain`, `ip`, `docker`) |
+| `--version` | | `check` | Package version |
+| `--file` | `-f` | `sweep` | Manifest file path |
+| `--output` | `-o` | `sweep` | Output format (`json`) |
+| `--fail-on-any` | | `sweep` | Exit 3 if any malicious hit |
 
 ---
 
