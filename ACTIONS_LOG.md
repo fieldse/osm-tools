@@ -13,3 +13,4 @@
 - 2026-06-02 change - **dropped .env**: removed the unused .env convention the program never read; documented the export and `osm config` paths instead
 - 2026-06-02 change - **build script**: added build.sh that compiles the tool into ./bin
 - 2026-06-02 bug - **wrong API base path and response shapes**: live calls 404'd because the base URL and the check/latest response field layouts were modeled from notes, not the real API; corrected against the live docs and verified working
+- 2026-07-12 change - **submit command**: added `osm submit`, the first command that files a threat report to OSM, with three ways to compose one (a template file, a JSON file, or guided prompts) and a preview-then-confirm guardrail so nothing is sent until you approve it; live malware links in the writeup are automatically neutralized before sending
