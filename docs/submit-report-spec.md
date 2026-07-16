@@ -176,9 +176,46 @@ A **copy-paste-first** wizard. Prompts walk the fields in report order and accep
 input (Description, Payload, Evidence). **Multi-line fields terminate on EOF (Ctrl-D) or a lone
 sentinel line (`.`)** — a blank line does *not* end input, since markdown descriptions contain
 blank lines; the terminator is echoed in the prompt (S4). Hints are **structural only** ("add a
-second evidence URL", "which versions?") — never content/style critique. Report-type-aware (first
-prompt is the type; subsequent prompts adapt). For each **optional** field left blank, offer a
-`y/n` "add this?" before moving on.
+second evidence URL", "which versions?") — never content/style critique.
+
+**Every prompt must be answerable without the API docs open.** Each prompt spans two or three lines
+so a long enum never overflows the terminal: the field name and `(required)`/`(optional)` sit on the
+first line; the accepted vocabulary or a short example goes on an indented second line; the answer is
+typed after a `> ` marker, with any **default pre-shown on that input line** so pressing Enter
+accepts what's displayed (or skips an optional field):
+
+```
+report_type (required)
+  package|container|repository|url|domain|ip|wallet
+> package
+resource_identifier (required)
+  what you're reporting, e.g. @acme/utils
+> 
+registry (optional)
+  npm|pypi|maven|nuget|rubygems|packagist|crates|go
+> npm
+first_seen (optional)
+  YYYY-MM-DD
+> 2026-07-16
+```
+
+- **Defaults:** `report_type` → `package`, `registry` → `npm` (the common case), `first_seen` →
+  today's date in `YYYY-MM-DD`. Dates use the date-only `YYYY-MM-DD` form (still valid ISO 8601; the
+  validator accepts both that and a full RFC 3339 timestamp). Enum vocabularies are rendered from the
+  canonical sources (`report.IsValidType`, `ecosystem.All()`) so a new ecosystem shows up in the
+  prompt without a second edit.
+- **Report-type-aware:** the type is the first prompt and later prompts adapt to it. The `npm`
+  registry default applies **only to package reports** — a domain or wallet report has no registry,
+  so pre-filling one there would invite a wrong answer rather than save a keystroke.
+- **Inline re-prompt** on a blank required field or an invalid `report_type`, rather than deferring
+  to the final `Validate` — a typo should cost one line, not the whole wizard. Warn-only fields
+  (`registry`, `severity_level`, dates) still fall through to `Validate`'s warnings, matching the
+  other input modes.
+- **Multi-line blocks carry a worked example** of a usable answer (Description, Payload, Evidence).
+  These are the fields people stall on; showing the shape is the difference between a report OSM can
+  act on and three lines of shrug.
+- **Evidence lines strip a leading `- ` bullet**, since the template writes evidence as a markdown
+  list and people reach for the same shape at the prompt.
 
 - **Non-TTY guard:** `-i` requires an interactive stdin. Piped/CI stdin → `osmerr.Usagef` (exit 2)
   suggesting `--from-json -`.

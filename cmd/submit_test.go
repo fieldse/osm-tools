@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/fieldse/osm-tools/internal/client"
 	"github.com/fieldse/osm-tools/internal/osmerr"
@@ -267,20 +269,20 @@ curl http://evil.com
 	// interactive transcript in the fixed §10 field order; "." terminates the
 	// multi-line description/payload/evidence blocks.
 	transcript := strings.Join([]string{
-		"package",                    // report_type
-		"evil-pkg",                   // resource_identifier
-		"evil-pkg",                   // package_name
-		"npm",                        // registry
-		"baduser",                    // publisher
-		"abuse@example.com",          // contact_email
-		"high",                       // severity_level
-		"1.0.0",                      // version_info
-		"2026-01-01T00:00:00Z",       // first_seen
-		"2026-02-01T00:00:00Z",       // last_seen
-		"https://osv.dev/GHSA-xxxx",  // osv_advisory_url
-		"malware, backdoor",          // tags
-		"It is bad", ".",             // description (multi-line)
-		"curl http://evil.com", ".",  // payload_description (multi-line)
+		"package",                   // report_type
+		"evil-pkg",                  // resource_identifier
+		"evil-pkg",                  // package_name
+		"npm",                       // registry
+		"baduser",                   // publisher
+		"abuse@example.com",         // contact_email
+		"high",                      // severity_level
+		"1.0.0",                     // version_info
+		"2026-01-01T00:00:00Z",      // first_seen
+		"2026-02-01T00:00:00Z",      // last_seen
+		"https://osv.dev/GHSA-xxxx", // osv_advisory_url
+		"malware, backdoor",         // tags
+		"It is bad", ".",            // description (multi-line)
+		"curl http://evil.com", ".", // payload_description (multi-line)
 		"https://osv.dev/GHSA-xxxx",  // evidence 1
 		"https://example.com/report", // evidence 2
 		".",                          // end evidence
@@ -311,6 +313,337 @@ curl http://evil.com
 	}
 	if !reflect.DeepEqual(fromTmpl, fromInteractive) {
 		t.Errorf("template vs interactive differ:\n template=%+v\n interactive=%+v", fromTmpl, fromInteractive)
+	}
+}
+
+// --- Ctrl-C at a prompt (interrupt handling) ---
+
+// blockingReader stands in for a TTY waiting on a user who never types: Read
+// parks until the test releases it. A plain empty reader would hit EOF and let
+// the prompt fall through, which would pass these tests for the wrong reason.
+type blockingReader struct{ release chan struct{} }
+
+func (b blockingReader) Read(p []byte) (int, error) {
+	<-b.release
+	return 0, io.EOF
+}
+
+// TestSubmit_InterruptAtConfirmAborts asserts Ctrl-C at the confirm prompt ends
+// the run instead of hanging. main installs a signal handler that only cancels
+// the context, so a prompt blocked on a raw stdin read would ignore the
+// interrupt and wait forever.
+func TestSubmit_InterruptAtConfirmAborts(t *testing.T) {
+	rec := &recorder{}
+	srv := newRecordingServer(rec)
+	defer srv.Close()
+
+	path := writeTempFile(t, "report.md", validTemplate)
+
+	deps := testDeps(srv)
+	cmd := newSubmitCmd(deps)
+	var out, errBuf bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errBuf)
+
+	release := make(chan struct{})
+	defer close(release)
+	cmd.SetIn(blockingReader{release: release})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd.SetContext(ctx)
+	cancel() // Ctrl-C lands while the prompt waits
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runSubmit(cmd, deps, &submitOptions{
+			file: path, isTerminal: func() bool { return true },
+		})
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Ctrl-C at the confirm prompt should abort cleanly, got: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("runSubmit hung after Ctrl-C — the prompt is ignoring context cancellation")
+	}
+
+	if !strings.Contains(errBuf.String(), "aborted") {
+		t.Errorf("interrupt should report an abort, stderr was:\n%s", errBuf.String())
+	}
+	if rec.postCount() != 0 {
+		t.Errorf("submit POSTs = %d, want 0 after an interrupt", rec.postCount())
+	}
+}
+
+// TestSubmit_InterruptInWizardAborts asserts Ctrl-C mid-wizard ends the run
+// rather than marching through the remaining prompts.
+func TestSubmit_InterruptInWizardAborts(t *testing.T) {
+	rec := &recorder{}
+	srv := newRecordingServer(rec)
+	defer srv.Close()
+
+	deps := testDeps(srv)
+	cmd := newSubmitCmd(deps)
+	var out, errBuf bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errBuf)
+
+	release := make(chan struct{})
+	defer close(release)
+	cmd.SetIn(blockingReader{release: release})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd.SetContext(ctx)
+	cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runSubmit(cmd, deps, &submitOptions{
+			interactive: true, isTerminal: func() bool { return true },
+		})
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Ctrl-C in the wizard should abort cleanly, got: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("wizard hung after Ctrl-C — a prompt is ignoring context cancellation")
+	}
+
+	if rec.postCount() != 0 {
+		t.Errorf("submit POSTs = %d, want 0 after an interrupt", rec.postCount())
+	}
+}
+
+// TestSubmit_SharedStdinReader asserts the wizard and the confirm prompt read
+// through one reader. Two readers would race for the next line, letting an
+// abandoned wizard goroutine swallow the confirm answer — the report would then
+// silently not submit despite a "y".
+func TestSubmit_SharedStdinReader(t *testing.T) {
+	rec := &recorder{}
+	srv := newRecordingServer(rec)
+	defer srv.Close()
+
+	// A full wizard transcript with the confirm answer appended.
+	transcript := interactiveTranscript(t,
+		[]string{
+			"package", "@acme/utils", "", "",
+			"", "", "", "", "", "", "", "",
+		},
+		"steals npmrc", "") + "y\n"
+
+	deps := testDeps(srv)
+	cmd := newSubmitCmd(deps)
+	var out, errBuf bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errBuf)
+	cmd.SetIn(strings.NewReader(transcript))
+
+	opts := &submitOptions{interactive: true, isTerminal: func() bool { return true }}
+	if err := runSubmit(cmd, deps, opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.postCount() != 1 {
+		t.Errorf("submit POSTs = %d, want 1 — the confirm 'y' after the wizard was not read", rec.postCount())
+	}
+}
+
+// --- Interactive affordances (defaults, enum re-prompt, hints) ---
+
+// interactiveTranscript builds a wizard transcript from the given answers,
+// appending the terminators for the three trailing blocks so cases only have to
+// state the single-line answers they care about.
+func interactiveTranscript(t *testing.T, singleLine []string, desc, payload string, evidence ...string) string {
+	t.Helper()
+	lines := append([]string{}, singleLine...)
+	lines = append(lines, desc, ".", payload, ".")
+	lines = append(lines, evidence...)
+	lines = append(lines, ".")
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// runInteractive drives collectInteractive over a transcript and returns the
+// assembled report plus everything the wizard printed to stderr.
+func runInteractive(t *testing.T, transcript string) (report.Report, string) {
+	t.Helper()
+	deps := testDeps(httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	cmd := newSubmitCmd(deps)
+	var errBuf bytes.Buffer
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&errBuf)
+	cmd.SetIn(strings.NewReader(transcript))
+
+	r, err := collectInteractive(cmd, &submitOptions{
+		interactive: true,
+		isTerminal:  func() bool { return true },
+	})
+	if err != nil {
+		t.Fatalf("collectInteractive: %v", err)
+	}
+	return r, errBuf.String()
+}
+
+// TestSubmit_InteractiveDefaults asserts a bare Enter on report_type and
+// registry takes the package/npm defaults rather than submitting empty fields.
+func TestSubmit_InteractiveDefaults(t *testing.T) {
+	// report_type and registry left blank; everything else answered or skipped.
+	transcript := interactiveTranscript(t,
+		[]string{
+			"",                             // report_type   -> default package
+			"@acme/utils",                  // resource_identifier
+			"",                             // package_name
+			"",                             // registry      -> default npm
+			"", "", "", "", "", "", "", "", // publisher..tags
+		},
+		"steals npmrc", "http://evil.com")
+
+	r, _ := runInteractive(t, transcript)
+
+	if r.Type != report.TypePackage {
+		t.Errorf("report_type = %q, want the %q default on blank input", r.Type, report.TypePackage)
+	}
+	if r.Registry != "npm" {
+		t.Errorf("registry = %q, want the \"npm\" default on blank input", r.Registry)
+	}
+}
+
+// TestSubmit_InteractiveRegistryDefaultOnlyForPackages asserts a non-package
+// report does not get npm pre-filled — a domain report has no registry, so a
+// default there would invite a wrong answer rather than save a keystroke.
+func TestSubmit_InteractiveRegistryDefaultOnlyForPackages(t *testing.T) {
+	transcript := interactiveTranscript(t,
+		[]string{
+			"domain",                       // report_type
+			"evil.com",                     // resource_identifier
+			"",                             // package_name
+			"",                             // registry -> must stay empty
+			"", "", "", "", "", "", "", "", // publisher..tags
+		},
+		"hosts malware", "")
+
+	r, _ := runInteractive(t, transcript)
+
+	if r.Registry != "" {
+		t.Errorf("registry = %q, want empty for a domain report (npm default must not apply)", r.Registry)
+	}
+}
+
+// TestSubmit_InteractiveRejectsBadTypeInline asserts an invalid report_type is
+// re-prompted on the spot. Without this the wizard accepts the typo and only
+// fails at Validate — after every other field has been typed.
+func TestSubmit_InteractiveRejectsBadTypeInline(t *testing.T) {
+	transcript := interactiveTranscript(t,
+		[]string{
+			"pakcage",     // typo -> re-prompt
+			"package",     // corrected
+			"@acme/utils", // resource_identifier
+			"", "",        // package_name, registry
+			"", "", "", "", "", "", "", "", // publisher..tags
+		},
+		"steals npmrc", "")
+
+	r, transcriptOut := runInteractive(t, transcript)
+
+	if r.Type != report.TypePackage {
+		t.Errorf("report_type = %q, want %q after correction", r.Type, report.TypePackage)
+	}
+	if !strings.Contains(transcriptOut, "not a valid report_type") {
+		t.Errorf("wizard did not flag the bad report_type inline:\n%s", transcriptOut)
+	}
+}
+
+// TestSubmit_InteractivePromptsCarryHints asserts each prompt states whether the
+// field is required and offers a vocabulary or example — the wizard's whole
+// point is that you can answer it without the API docs open.
+func TestSubmit_InteractivePromptsCarryHints(t *testing.T) {
+	transcript := interactiveTranscript(t,
+		[]string{
+			"package", "@acme/utils", "", "",
+			"", "", "", "", "", "", "", "",
+		},
+		"steals npmrc", "")
+
+	_, out := runInteractive(t, transcript)
+
+	for _, want := range []string{
+		"report_type",
+		"(required)",
+		"(optional)",
+		"package|container|repository|url|domain|ip|wallet", // type vocabulary
+		"critical|high|medium|low",                          // severity vocabulary
+		"npm|pypi",                                          // registry vocabulary
+		"> package",                                         // default shown on the input line
+		"> npm",                                             // registry default on the input line
+		"YYYY-MM-DD",                                        // date format hint
+		"Example:",                                          // block examples
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("prompt transcript missing %q:\n%s", want, out)
+		}
+	}
+}
+
+// TestSubmit_InteractiveFirstSeenDefaultsToday asserts a blank first_seen takes
+// today's date in YYYY-MM-DD form, via the clock seam so the assertion is
+// deterministic.
+func TestSubmit_InteractiveFirstSeenDefaultsToday(t *testing.T) {
+	fixed := time.Date(2026, 7, 16, 9, 30, 0, 0, time.UTC)
+
+	transcript := interactiveTranscript(t,
+		[]string{
+			"package", "@acme/utils", "", "",
+			"", "", "", "", // publisher..version_info
+			"",     // first_seen -> today's default
+			"",     // last_seen
+			"", "", // osv_advisory_url, tags
+		},
+		"steals npmrc", "")
+
+	deps := testDeps(httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	cmd := newSubmitCmd(deps)
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetIn(strings.NewReader(transcript))
+
+	r, err := collectInteractive(cmd, &submitOptions{
+		interactive: true,
+		isTerminal:  func() bool { return true },
+		now:         func() time.Time { return fixed },
+	})
+	if err != nil {
+		t.Fatalf("collectInteractive: %v", err)
+	}
+	if r.FirstSeen != "2026-07-16" {
+		t.Errorf("first_seen = %q, want today's date %q on blank input", r.FirstSeen, "2026-07-16")
+	}
+	if r.LastSeen != "" {
+		t.Errorf("last_seen = %q, want empty (no default)", r.LastSeen)
+	}
+}
+
+// TestSubmit_InteractiveStripsEvidenceBullets asserts a pasted markdown bullet
+// does not become part of the evidence URL — the template writes evidence as a
+// "- <url>" list, so people reach for the same shape at the prompt.
+func TestSubmit_InteractiveStripsEvidenceBullets(t *testing.T) {
+	transcript := interactiveTranscript(t,
+		[]string{
+			"package", "@acme/utils", "", "",
+			"", "", "", "", "", "", "", "",
+		},
+		"steals npmrc", "",
+		"- https://osv.dev/GHSA-1",
+		"https://example.com/report",
+	)
+
+	r, _ := runInteractive(t, transcript)
+
+	want := []string{"https://osv.dev/GHSA-1", "https://example.com/report"}
+	if !reflect.DeepEqual(r.EvidenceRefs, want) {
+		t.Errorf("EvidenceRefs = %q, want %q (leading bullet must be stripped)", r.EvidenceRefs, want)
 	}
 }
 

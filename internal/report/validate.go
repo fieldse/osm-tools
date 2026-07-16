@@ -45,18 +45,23 @@ func Validate(r Report) (warnings []string, err error) {
 	if r.SeverityLevel != "" && !validSeverities[r.SeverityLevel] {
 		warnings = append(warnings, fmt.Sprintf("unrecognized severity_level %q", r.SeverityLevel))
 	}
-	if r.FirstSeen != "" && !isRFC3339(r.FirstSeen) {
+	if r.FirstSeen != "" && !isISO8601(r.FirstSeen) {
 		warnings = append(warnings, fmt.Sprintf("first_seen is not ISO 8601: %q", r.FirstSeen))
 	}
-	if r.LastSeen != "" && !isRFC3339(r.LastSeen) {
+	if r.LastSeen != "" && !isISO8601(r.LastSeen) {
 		warnings = append(warnings, fmt.Sprintf("last_seen is not ISO 8601: %q", r.LastSeen))
 	}
 
 	return warnings, nil
 }
 
-// isRFC3339 reports whether v parses as an RFC 3339 (ISO 8601) timestamp.
-func isRFC3339(v string) bool {
-	_, err := time.Parse(time.RFC3339, v)
+// isISO8601 reports whether v parses as either a full RFC 3339 timestamp or a
+// date-only YYYY-MM-DD value — both are valid ISO 8601, and the interactive
+// wizard suggests the date-only form.
+func isISO8601(v string) bool {
+	if _, err := time.Parse(time.RFC3339, v); err == nil {
+		return true
+	}
+	_, err := time.Parse("2006-01-02", v)
 	return err == nil
 }

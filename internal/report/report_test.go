@@ -324,7 +324,7 @@ func TestValidate_OptionalOnlyWarns(t *testing.T) {
 		},
 		{
 			name:   "non-ISO last_seen",
-			mutate: func(r Report) Report { r.LastSeen = "2026-01-02"; return r }, // date-only, not RFC3339
+			mutate: func(r Report) Report { r.LastSeen = "last tuesday"; return r },
 		},
 	}
 
@@ -338,5 +338,24 @@ func TestValidate_OptionalOnlyWarns(t *testing.T) {
 				t.Errorf("expected at least one warning, got none")
 			}
 		})
+	}
+}
+
+// TestValidate_AcceptsDateOnly asserts a YYYY-MM-DD first_seen/last_seen is
+// accepted without warning — it's valid ISO 8601 and the form the interactive
+// wizard suggests (first_seen defaults to today in that shape).
+func TestValidate_AcceptsDateOnly(t *testing.T) {
+	base := Report{Type: TypePackage, ResourceID: "evil-pkg", Description: "bad"}
+	base.FirstSeen = "2026-07-16"
+	base.LastSeen = "2026-07-16"
+
+	warnings, err := Validate(base)
+	if err != nil {
+		t.Fatalf("date-only should not error: %v", err)
+	}
+	for _, w := range warnings {
+		if strings.Contains(w, "first_seen") || strings.Contains(w, "last_seen") {
+			t.Errorf("date-only should not warn, got: %q", w)
+		}
 	}
 }
