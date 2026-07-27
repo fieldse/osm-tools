@@ -14,6 +14,7 @@ import (
 	"github.com/fieldse/osm-tools/internal/client"
 	"github.com/fieldse/osm-tools/internal/ecosystem"
 	"github.com/fieldse/osm-tools/internal/osmerr"
+	"github.com/fieldse/osm-tools/internal/output"
 	"github.com/fieldse/osm-tools/internal/report"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -211,6 +212,7 @@ func runSubmit(cmd *cobra.Command, deps *appDeps, opts *submitOptions) error {
 	if opts.emitJSON {
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
+		enc.SetEscapeHTML(false) // this is terminal output, not an HTML <script> body
 		return enc.Encode(req)
 	}
 
@@ -678,22 +680,20 @@ func confirmSubmit(cmd *cobra.Command, opts *submitOptions, req client.SubmitReq
 	return answer == "y" || answer == "yes", nil
 }
 
-// writePreview prints a short human summary of the request to w.
+// writePreview prints the human summary of the request to w, wrapped to the
+// current terminal width.
 func writePreview(w io.Writer, req client.SubmitRequest) {
-	fmt.Fprintln(w, "--- report preview ---")
-	fmt.Fprintf(w, "type:        %s\n", req.ReportType)
-	fmt.Fprintf(w, "resource:    %s\n", req.ResourceIdentifier)
-	if req.SeverityLevel != "" {
-		fmt.Fprintf(w, "severity:    %s\n", req.SeverityLevel)
+	output.SubmitPreview(w, req, terminalWidth())
+}
+
+// terminalWidth reports the width of stderr (where the preview goes), or 0 when
+// it isn't a terminal — the renderer falls back to a sensible default.
+func terminalWidth() int {
+	w, _, err := term.GetSize(int(os.Stderr.Fd()))
+	if err != nil || w <= 0 {
+		return 0
 	}
-	fmt.Fprintf(w, "description: %s\n", req.ThreatDescription)
-	if req.PayloadDescription != "" {
-		fmt.Fprintf(w, "payload:     %s\n", req.PayloadDescription)
-	}
-	if req.EvidenceReferences != "" {
-		fmt.Fprintf(w, "evidence:    %s\n", req.EvidenceReferences)
-	}
-	fmt.Fprintln(w, "----------------------")
+	return w
 }
 
 // toSubmitRequest maps the canonical report onto the wire request: it joins the

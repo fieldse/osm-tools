@@ -30,6 +30,7 @@ func SweepTable(w io.Writer, rows []SweepRow) {
 func SweepJSON(w io.Writer, rows []SweepRow) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false) // this is terminal output, not an HTML <script> body
 	return enc.Encode(rows)
 }
 
