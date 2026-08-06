@@ -71,6 +71,21 @@ osm latest -e npm,pypi,maven
 
 Supported ecosystems: `npm`, `pypi`, `maven`, `nuget`, `rubygems`, `packagist`, `crates`, `go` — [full list](https://docs.opensourcemalware.com/asset-types)
 
+### `osm submit`
+
+Files a threat report to OpenSourceMalware.com. Compose it from a template file, a JSON file, or an interactive wizard; every run previews the report and waits for confirmation before sending.
+
+```sh
+osm submit report.md                          # template file
+osm submit --from-json report.json            # structured JSON
+osm submit -i                                 # interactive wizard
+osm submit report.md --dry-run                # rehearse — no network
+osm submit report.md --emit-json              # print assembled JSON, no network
+osm submit --template > report.md             # write a blank template
+```
+
+See the [submit guide](docs/submit.md) for copy-paste examples of each mode, defanging, CI usage, and exit codes.
+
 ### Flags
 
 | Flag | Short | Commands | Description |
@@ -82,6 +97,13 @@ Supported ecosystems: `npm`, `pypi`, `maven`, `nuget`, `rubygems`, `packagist`, 
 | `--file` | `-f` | `sweep` | Manifest file path |
 | `--output` | `-o` | `sweep` | Output format (`json`) |
 | `--fail-on-any` | | `sweep` | Exit 3 if any malicious hit |
+| `--interactive` | `-i` | `submit` | Compose the report through guided prompts |
+| `--from-json` | | `submit` | Read a structured JSON report (`-` = stdin) |
+| `--template` | | `submit` | Print the blank report template and exit |
+| `--emit-json` | | `submit` | Print the assembled report as JSON and exit |
+| `--dry-run` | | `submit` | Run the local pipeline, stop before submit |
+| `--no-defang` | | `submit` | Send IOCs verbatim instead of neutralizing them |
+| `--yes` | `-y` | `submit` | Assume yes to prompts; required in non-TTY runs |
 
 ---
 

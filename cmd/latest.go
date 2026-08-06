@@ -48,6 +48,7 @@ func runLatest(cmd *cobra.Command, deps *appDeps, ecosystemFlag string) error {
 
 	enc := json.NewEncoder(cmd.OutOrStdout())
 	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false) // this is terminal output, not an HTML <script> body
 	return enc.Encode(grouped)
 }
 
