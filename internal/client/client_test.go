@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fieldse/osm-tools/internal/osmerr"
 )
@@ -200,5 +201,45 @@ func TestCheck_ContextCancelled(t *testing.T) {
 	_, err := newTestClient(t, srv).Check(ctx, Query{Type: "package", Identifier: "x", Ecosystem: "npm"})
 	if err == nil {
 		t.Fatal("expected context cancellation error, got nil")
+	}
+}
+
+func TestRetryWait(t *testing.T) {
+	now := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		header string
+		want   time.Duration
+	}{
+		{"0", 0},
+		{"5", 5 * time.Second},
+		{" 7 ", 7 * time.Second},
+		{"", defaultRetryWait},
+		{"soon", defaultRetryWait},
+		{"-3", 0},
+		{"3600", maxRetryWait},
+		{now.Add(10 * time.Second).Format(http.TimeFormat), 10 * time.Second},
+		{now.Add(-time.Minute).Format(http.TimeFormat), 0},
+	}
+	for _, tt := range tests {
+		if got := retryWait(tt.header, now); got != tt.want {
+			t.Errorf("retryWait(%q) = %s, want %s", tt.header, got, tt.want)
+		}
+	}
+}
+
+func TestRetryable(t *testing.T) {
+	tests := []struct {
+		err  osmerr.APIError
+		want bool
+	}{
+		{osmerr.APIError{StatusCode: 429, Body: `{"error":"Rate limit exceeded. Maximum 60 requests per minute (standard tier)."}`}, true},
+		{osmerr.APIError{StatusCode: 429, Body: `{"error":"Daily quota exceeded: 2000/2000 requests"}`}, false},
+		{osmerr.APIError{StatusCode: 503}, false},
+		{osmerr.APIError{StatusCode: 401}, false},
+	}
+	for _, tt := range tests {
+		if got := retryable(&tt.err); got != tt.want {
+			t.Errorf("retryable(%d %q) = %v, want %v", tt.err.StatusCode, tt.err.Body, got, tt.want)
+		}
 	}
 }

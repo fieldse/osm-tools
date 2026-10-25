@@ -6,10 +6,12 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,13 +80,39 @@ func (c *Client) QueryLatest(ctx context.Context, ecosystem string) ([]LatestThr
 	return resp.Threats, nil
 }
 
-// getJSON issues a GET, classifies the response, and decodes the body into dst.
+// Retry policy for per-minute 429s. A daily-quota 429 is never retried.
+const (
+	maxRetries       = 3
+	defaultRetryWait = 2 * time.Second
+	maxRetryWait     = 60 * time.Second
+	dailyQuotaMarker = "daily quota"
+)
+
+// getJSON issues a GET, retrying per-minute 429s, and decodes the body into dst.
 func (c *Client) getJSON(ctx context.Context, path string, params url.Values, dst any) error {
 	u := c.baseURL + path
 	if encoded := params.Encode(); encoded != "" {
 		u += "?" + encoded
 	}
 
+	for attempt := 0; ; attempt++ {
+		err := c.getOnce(ctx, path, u, dst)
+		var apiErr *osmerr.APIError
+		if attempt == maxRetries || !errors.As(err, &apiErr) || !retryable(apiErr) {
+			return err
+		}
+		wait := retryWait(apiErr.RetryAfter, time.Now())
+		if c.debug != nil {
+			fmt.Fprintf(c.debug, "  rate limited; retry %d/%d in %s\n", attempt+1, maxRetries, wait)
+		}
+		if err := sleepCtx(ctx, wait); err != nil {
+			return fmt.Errorf("waiting to retry %s: %w", path, err)
+		}
+	}
+}
+
+// getOnce issues one GET, classifies the response, and decodes the body into dst.
+func (c *Client) getOnce(ctx context.Context, path, u string, dst any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return fmt.Errorf("building request: %w", err)
@@ -119,6 +147,39 @@ func (c *Client) getJSON(ctx context.Context, path string, params url.Values, ds
 		return fmt.Errorf("decoding %s response: %w", path, err)
 	}
 	return nil
+}
+
+// retryable reports whether e is a per-minute rate limit worth waiting out.
+func retryable(e *osmerr.APIError) bool {
+	return e.IsRateLimit() && !strings.Contains(strings.ToLower(e.Body), dailyQuotaMarker)
+}
+
+// retryWait converts a Retry-After header (seconds or an HTTP date) into a
+// wait, falling back to defaultRetryWait and capping at maxRetryWait.
+func retryWait(header string, now time.Time) time.Duration {
+	header = strings.TrimSpace(header)
+	wait := defaultRetryWait
+	if secs, err := strconv.Atoi(header); err == nil {
+		wait = time.Duration(secs) * time.Second
+	} else if at, err := http.ParseTime(header); err == nil {
+		wait = at.Sub(now)
+	}
+	return min(max(wait, 0), maxRetryWait)
+}
+
+// sleepCtx waits for d or until ctx ends, returning ctx's error in that case.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 // classifyError reads a non-2xx response and builds an *APIError. The
