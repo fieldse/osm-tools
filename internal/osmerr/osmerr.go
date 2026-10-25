@@ -9,6 +9,8 @@ package osmerr
 import (
 	"errors"
 	"fmt"
+
+	"github.com/fieldse/osm-tools/internal/termsafe"
 )
 
 // Sentinel errors. Compare with errors.Is.
@@ -30,11 +32,14 @@ type APIError struct {
 	RetryAfter string
 }
 
+// Error renders the status and body. The body is server-supplied, so control
+// characters are neutralised before it reaches a terminal.
 func (e *APIError) Error() string {
+	body := termsafe.String(e.Body)
 	if e.RetryAfter != "" {
-		return fmt.Sprintf("API error: status %d (retry after %s): %s", e.StatusCode, e.RetryAfter, e.Body)
+		return fmt.Sprintf("API error: status %d (retry after %s): %s", e.StatusCode, termsafe.String(e.RetryAfter), body)
 	}
-	return fmt.Sprintf("API error: status %d: %s", e.StatusCode, e.Body)
+	return fmt.Sprintf("API error: status %d: %s", e.StatusCode, body)
 }
 
 // IsAuth reports whether the API rejected the token (401/403).
@@ -60,14 +65,14 @@ func Usagef(format string, args ...any) *UsageError {
 	return &UsageError{Msg: fmt.Sprintf(format, args...)}
 }
 
-// GateTriggered signals that `sweep --fail-on-any` found at least one malicious
-// result. It is a successful run with a policy verdict, not an error condition;
-// the mapper recognizes it and returns exit code 3. Hits carries the offending
-// package identifiers for the summary line.
+// GateTriggered signals that `sweep --fail-on-any` found at least one MALICIOUS
+// or REVIEW result. It is a successful run with a policy verdict, not an error
+// condition; the mapper recognizes it and returns exit code 3. Hits carries the
+// offending package identifiers for the summary line.
 type GateTriggered struct {
 	Hits []string
 }
 
 func (e *GateTriggered) Error() string {
-	return fmt.Sprintf("policy gate triggered: %d malicious package(s) found", len(e.Hits))
+	return fmt.Sprintf("policy gate triggered: %d package(s) flagged MALICIOUS or REVIEW", len(e.Hits))
 }

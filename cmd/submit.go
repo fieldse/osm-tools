@@ -16,6 +16,7 @@ import (
 	"github.com/fieldse/osm-tools/internal/osmerr"
 	"github.com/fieldse/osm-tools/internal/output"
 	"github.com/fieldse/osm-tools/internal/report"
+	"github.com/fieldse/osm-tools/internal/termsafe"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -243,9 +244,13 @@ func runSubmit(cmd *cobra.Command, deps *appDeps, opts *submitOptions) error {
 			Type:       req.ReportType,
 			Identifier: req.ResourceIdentifier,
 		}); derr == nil && res.Malicious {
+			threatID := res.Details.ThreatID
+			if threatID == "" {
+				threatID = res.Details.ID
+			}
 			fmt.Fprintf(cmd.ErrOrStderr(),
 				"note: %s is already flagged malicious (threat %s)\n",
-				req.ResourceIdentifier, res.Details.ID)
+				termsafe.String(req.ResourceIdentifier), termsafe.String(threatID))
 		}
 	}
 
