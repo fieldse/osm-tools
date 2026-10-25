@@ -154,9 +154,9 @@ Acceptance tests live in `*_acceptance_test.go` files and `testdata/acceptance/`
 
 ## Work breakdown
 
-- [ ] **Tests first:** test agents write the acceptance tests, a critic checks coverage against this plan, and the suite is run on the pre-fix code to confirm it fails.
-- [ ] **Dependency audit:** choose and pin a YAML library (dependency-auditor; decision record in `docs/decisions/`).
-- [ ] **Lock:** commit the tests and record the commit hash below.
+- [x] **Tests first:** test agents write the acceptance tests, a critic checks coverage against this plan, and the suite is run on the pre-fix code to confirm it fails.
+- [x] **Dependency audit:** choose and pin a YAML library (dependency-auditor; decision record in `docs/decisions/`).
+- [x] **Lock:** commit the tests and record the commit hash below.
 - [ ] **Implement, wave 1 (parallel, worktrees):** verdict + models + output + sweep (R2 R4 R8); client retry (R11); parsers (R3 R12).
 - [ ] **Integrate:** merge wave 1 and run the full suite.
 - [ ] **Implement, wave 2:** check command, infer, ecosystem, latest, Maven fallback (R1 R5 R6 R7 R9 R10).
@@ -164,4 +164,6 @@ Acceptance tests live in `*_acceptance_test.go` files and `testdata/acceptance/`
 - [ ] **Docs:** docs-writer (R13).
 - [ ] **Final gate:** anti-cheat rule 6, then commit.
 
-Locked test commit: _(filled in after the lock step)_
+Locked test commit: `c391888` (54 red, 15 regression guards).
+
+YAML dependency: `go.yaml.in/yaml/v3 v3.0.5`, approved by the user 2026-10-25 (decision 0001). Lockfile reads are capped at 64 MiB and YAML decode runs under `recover()`.
