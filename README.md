@@ -2,6 +2,15 @@
 
 CLI for the [OpenSourceMalware.com](https://opensourcemalware.com) API — check packages, domains, IPs, and Docker images against a community-verified malicious package database.
 
+## What it does and doesn't do
+
+`osm` looks up names in OSM's database of confirmed malware: packages that were malicious from the start, or real packages whose maintainer account was taken over.
+
+- **It finds** packages, domains, IPs and container images that OSM has verified as malicious.
+- **It does not find** ordinary security bugs (CVEs). Use a vulnerability scanner such as Grype or OSV-Scanner for those.
+- **It does not analyse code.** It only matches names, and versions where OSM lists them.
+- **`CLEAN` means "no record found",** not "safe". A misspelled name also comes back `CLEAN`.
+
 ---
 
 ## Install
@@ -35,19 +44,26 @@ osm check @scope/pkg -e npm           # scoped npm — include the full @scope/n
 osm check evil.com
 osm check 1.2.3.4
 osm check nginx:latest
-osm check express -T package -e npm   # explicit type override
+osm check aquasec/trivy -T docker     # untagged image
 ```
 
-**Lookup type** is chosen in this order:
-1. `-T` if given: `package`, `domain`, `ip` or `docker`.
-2. `-e` makes it a package lookup.
-3. Otherwise it is inferred from the input. IPs, domains and Docker images (a `:` tag or a known registry such as `ghcr.io/`) are detected; anything else is a package.
+**Packages** need `-e` with the ecosystem. Type the name exactly as the registry does: case, `@scope/` and separators all matter.
 
-A package lookup needs `-e`. Without it, `check` exits 2. An image name with no tag and no known registry prefix, such as `aquasec/trivy`, is read as a package, so pass `-T docker`.
+**Domains, IPs and images** need no flag; `osm` detects them. An image with no tag, such as `aquasec/trivy`, needs `-T docker`.
 
-Repositories, URLs and wallet addresses are not supported. `check` rejects them with exit 2 before sending any request, including when passed as `-T repository`, `-T url` or `-T wallet`. See [supported asset types](https://docs.opensourcemalware.com/asset-types).
+Repositories, URLs and wallet addresses are not supported.
 
-Domains are lowercased before lookup. Package names are sent exactly as typed.
+**Name formats** that trip people up:
+
+| Ecosystem | Write it as | Won't match |
+|---|---|---|
+| npm | `@scope/name` | `scope/name` |
+| pypi | the registry's exact spelling (`tns-py`) | `TNS-PY`, `tns_py` |
+| maven | `groupId:artifactId` | (see Maven below) |
+| go | full module path; versions with `v` (`v0.1.0`) | `0.1.0` |
+| nuget, vscode | exact case (`Zendesk.OAuth`) | `zendesk.oauth` |
+
+**Maven:** write the name as `groupId:artifactId`. OSM stores some Maven records under the artifactId alone, so `osm` also checks that. A match found that way shows as `REVIEW`: check the groupId before trusting it.
 
 **Verdicts:**
 - `MALICIOUS`: a hit that covers every version, or a hit on the exact `--version` you passed.
@@ -55,10 +71,6 @@ Domains are lowercased before lookup. Package names are sent exactly as typed.
 - `CLEAN`: anything else, usually no record in the database.
 
 The output lists the affected versions and the OSM page URL when the API returns them. `check` exits 0 for all three verdicts.
-
-For Maven, give `groupId:artifactId`. If that comes back clean, `check` retries once with the bare artifactId, because OSM stores some Maven records that way. A hit from the retry is reported as `REVIEW`, since the artifactId may belong to a different groupId. A full coordinate with a version (`groupId:artifactId:version`, optionally with packaging and classifier) that comes back clean is first retried as `groupId:artifactId` at that version, unless `--version` is set, and then with the bare artifactId.
-
-> **Package names must match the registry exactly.** A clean result means "not in the database," not "verified safe." A typo'd or unscoped name will silently appear clean.
 
 ### `osm sweep`
 
