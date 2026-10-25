@@ -164,6 +164,6 @@ Acceptance tests live in `*_acceptance_test.go` files and `testdata/acceptance/`
 - [x] **Docs:** docs-writer (R13).
 - [ ] **Final gate:** anti-cheat rule 6, then commit.
 
-Locked test commit: `c391888` (54 red, 15 regression guards).
+Locked test commit: `47b1bd6` (54 red, 15 regression guards).
 
 YAML dependency: `go.yaml.in/yaml/v3 v3.0.5`, approved by the user 2026-10-25 (decision 0001). Every manifest and lockfile read goes through `readManifest` (`internal/parser/read.go`): regular files only, capped at 64 MiB. YAML is parsed into a node tree first (`internal/parser/yaml.go`). Aliases are rejected, and only the parts the parser reads are decoded into typed structs, under `recover()` and a cap on yaml.v3's quadratic duplicate-key checking. The yarn berry top level is walked, not decoded. `internal/parser/hostile_test.go` covers the cap, symlinks, alias bombs, deep nesting and wide mappings.
