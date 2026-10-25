@@ -38,7 +38,25 @@ osm check nginx:latest
 osm check express -T package -e npm   # explicit type override
 ```
 
-**Types:** Inferred from the input — IPs, domains, and Docker images are detected automatically; anything else is treated as a package. Use `-T` to be explicit: `package`, `domain`, `ip`, `docker`. See [supported asset types](https://docs.opensourcemalware.com/asset-types).
+**Lookup type** is chosen in this order:
+1. `-T` if given: `package`, `domain`, `ip` or `docker`.
+2. `-e` makes it a package lookup.
+3. Otherwise it is inferred from the input. IPs, domains and Docker images (a `:` tag or a known registry such as `ghcr.io/`) are detected; anything else is a package.
+
+A package lookup needs `-e`. Without it, `check` exits 2.
+
+Repositories, URLs and wallet addresses are not supported. `check` rejects them with exit 2 before sending any request, including when passed as `-T repository`, `-T url` or `-T wallet`. See [supported asset types](https://docs.opensourcemalware.com/asset-types).
+
+Domains are lowercased before lookup. Package names are sent exactly as typed.
+
+**Verdicts:**
+- `MALICIOUS`: a hit that covers every version, or a hit on the exact `--version` you passed.
+- `REVIEW`: a hit on specific versions when no exact version was given, a warning that the package has known malicious versions, or a Maven hit found only by its bare artifactId.
+- `CLEAN`: anything else, usually no record in the database.
+
+The output lists the affected versions and the OSM page URL when the API returns them. `check` exits 0 for all three verdicts.
+
+For Maven, give `groupId:artifactId`. If that comes back clean, `check` retries once with the bare artifactId, because OSM stores some Maven records that way. A hit from the retry is reported as `REVIEW`, since the artifactId may belong to a different groupId.
 
 > **Package names must match the registry exactly.** A clean result means "not in the database," not "verified safe." A typo'd or unscoped name will silently appear clean.
 
@@ -51,13 +69,27 @@ osm sweep -f package.json
 osm sweep -f requirements.txt
 osm sweep -f package-lock.json
 osm sweep -f poetry.lock
-osm sweep -f package.json --fail-on-any   # exit 3 on any hit
+osm sweep -f pnpm-lock.yaml
+osm sweep -f yarn.lock                    # needs package.json in the same directory
+osm sweep -f package.json --fail-on-any   # exit 3 on any MALICIOUS or REVIEW row
 osm sweep -f package.json -o json         # JSON output
 ```
 
-Supported manifests: `package.json`, `package-lock.json`, `requirements.txt`, `poetry.lock`. Direct dependencies only.
+Supported manifests:
+- `package.json`
+- `package-lock.json`
+- `pnpm-lock.yaml` (lockfile v6 and v9; monorepos check every project's direct deps)
+- `yarn.lock` (v1 and berry)
+- `requirements.txt`
+- `poetry.lock`
 
-Requests are paced at 30/min (half the API ceiling) — large manifests will take a moment.
+Sweep checks direct dependencies only. `yarn.lock` cannot tell direct deps from transitive ones, so sweep reads the `package.json` beside it. If that file is missing, sweep exits 1.
+
+Only exact versions are sent. A range such as `^1.14.0` is looked up with no version, and a hit on specific versions then shows as `REVIEW`. Local and git dependencies (`workspace:`, `file:`, `link:`, git and tarball URLs) are skipped.
+
+Each row shows the package, version, verdict (`MALICIOUS`, `REVIEW` or `CLEAN`, as for `check`), severity and affected versions. JSON rows also carry `osm_url` when present.
+
+Results are cached for 24 hours in `~/.osm/cache.json`.
 
 ### `osm latest`
 
@@ -69,7 +101,7 @@ osm latest -e npm
 osm latest -e npm,pypi,maven
 ```
 
-Supported ecosystems: `npm`, `pypi`, `maven`, `nuget`, `rubygems`, `packagist`, `crates`, `go` — [full list](https://docs.opensourcemalware.com/asset-types)
+Supported ecosystems: `npm`, `pypi`, `maven`, `nuget`, `rubygems`, `packagist`, `crates`, `go`, `vscode`, `openvsx`, `skills`, `brew`. Names are lowercase; an unknown name exits 2. The same list applies to `check -e`.
 
 ### `osm submit`
 
@@ -91,12 +123,13 @@ See the [submit guide](docs/submit.md) for copy-paste examples of each mode, def
 | Flag | Short | Commands | Description |
 |---|---|---|---|
 | `--token` | `-t` | all | API key |
-| `--ecosystem` | `-e` | `check`, `latest` | Package ecosystem (e.g. `npm`, `pypi`) |
+| `--ecosystem` | `-e` | `check`, `latest` | Package ecosystem (e.g. `npm`, `pypi`); on `check`, makes it a package lookup |
 | `--type` | `-T` | `check` | Asset type override (`package`, `domain`, `ip`, `docker`) |
 | `--version` | | `check` | Package version |
+| `--debug` | | `check` | Print the API request and response status to stderr |
 | `--file` | `-f` | `sweep` | Manifest file path |
 | `--output` | `-o` | `sweep` | Output format (`json`) |
-| `--fail-on-any` | | `sweep` | Exit 3 if any malicious hit |
+| `--fail-on-any` | | `sweep` | Exit 3 if any row is `MALICIOUS` or `REVIEW` |
 | `--interactive` | `-i` | `submit` | Compose the report through guided prompts |
 | `--from-json` | | `submit` | Read a structured JSON report (`-` = stdin) |
 | `--template` | | `submit` | Print the blank report template and exit |
@@ -104,6 +137,23 @@ See the [submit guide](docs/submit.md) for copy-paste examples of each mode, def
 | `--dry-run` | | `submit` | Run the local pipeline, stop before submit |
 | `--no-defang` | | `submit` | Send IOCs verbatim instead of neutralizing them |
 | `--yes` | `-y` | `submit` | Assume yes to prompts; required in non-TTY runs |
+
+### Rate limits
+
+The free tier allows 60 requests per minute and 2000 per day. `osm` paces itself at 30 requests per minute, so a large manifest takes a while to sweep.
+
+If the API returns a per-minute 429, `osm` waits for the `Retry-After` time and retries, up to 3 times. A daily-quota 429 is not retried, and the command exits 1.
+
+### Exit codes
+
+`check`, `sweep` and `latest` use these codes. `submit` has its own; see the [submit guide](docs/submit.md#exit-codes).
+
+| Code | Meaning |
+|---|---|
+| 0 | Success, whatever the verdict |
+| 1 | Operational error: network, auth, API error, unreadable or malformed manifest |
+| 2 | Usage error: bad flag, unknown ecosystem or manifest, unsupported asset type |
+| 3 | `sweep --fail-on-any` found a `MALICIOUS` or `REVIEW` row |
 
 ---
 

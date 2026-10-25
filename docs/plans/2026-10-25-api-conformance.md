@@ -140,7 +140,7 @@ Acceptance tests live in `*_acceptance_test.go` files and `testdata/acceptance/`
 
 ### R13 — docs
 - [ ] Skill `security-malware-osm/SKILL.md`: ecosystems, rate limits (60/min, 2000/day), REVIEW verdict, new manifests, unsupported types.
-- [ ] Project `CLAUDE.md`, `README.md` and the `sweep --file` help text reflect the new manifests, REVIEW and exit behaviour.
+- [x] Project `CLAUDE.md`, `README.md` and the `sweep --file` help text reflect the new manifests, REVIEW and exit behaviour.
 - [ ] Local agent config points at the current source checkout (local-only, not committed).
 
 ## Anti-cheat rules
@@ -161,7 +161,7 @@ Acceptance tests live in `*_acceptance_test.go` files and `testdata/acceptance/`
 - [ ] **Integrate:** merge wave 1 and run the full suite.
 - [ ] **Implement, wave 2:** check command, infer, ecosystem, latest, Maven fallback (R1 R5 R6 R7 R9 R10).
 - [ ] **Review:** code-reviewer, security-engineer, and a test-engineer anti-cheat audit.
-- [ ] **Docs:** docs-writer (R13).
+- [x] **Docs:** docs-writer (R13).
 - [ ] **Final gate:** anti-cheat rule 6, then commit.
 
 Locked test commit: `c391888` (54 red, 15 regression guards).
