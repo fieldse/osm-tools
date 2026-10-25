@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
 
@@ -68,15 +70,37 @@ func yarnDescriptor(name, spec string, berry bool) string {
 }
 
 // yarnBerryVersions maps every descriptor in a berry lockfile to its version.
+// The top-level mapping holds one entry per locked package, so it is walked
+// here rather than decoded, which would be quadratic in the entry count.
 func yarnBerryVersions(data []byte) (map[string]string, error) {
-	var entries map[string]yarnBerryEntry
-	if err := decodeYAML(data, &entries); err != nil {
+	root, err := parseYAML(data)
+	if err != nil {
 		return nil, err
 	}
 	out := make(map[string]string)
-	for key, e := range entries {
-		for _, d := range splitYarnKey(key) {
-			out[d] = e.Version
+	if root == nil {
+		return out, nil
+	}
+	if root.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("line %d: lockfile is not a YAML mapping", root.Line)
+	}
+	var d yamlDecoder
+	seen := make(map[string]bool, len(root.Content)/2)
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		k, v := root.Content[i], root.Content[i+1]
+		if k.Kind != yaml.ScalarNode {
+			return nil, fmt.Errorf("line %d: lockfile entry key is not a string", k.Line)
+		}
+		if seen[k.Value] {
+			return nil, fmt.Errorf("line %d: duplicate lockfile entry %q", k.Line, k.Value)
+		}
+		seen[k.Value] = true
+		var e yarnBerryEntry
+		if err := d.decode(v, &e); err != nil {
+			return nil, err
+		}
+		for _, desc := range splitYarnKey(k.Value) {
+			out[desc] = e.Version
 		}
 	}
 	return out, nil

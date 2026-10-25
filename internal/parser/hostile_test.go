@@ -162,3 +162,70 @@ func TestHostile_SymlinkedManifestRejected(t *testing.T) {
 		})
 	}
 }
+
+// wideMapKeys is past any real dependency map. yaml.v3 compares every pair of
+// keys in a decoded mapping for duplicates, so decode time grows with the
+// square of a mapping's width.
+const wideMapKeys = 30_000
+
+func TestHostile_WideMappingPnpm(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n")
+	for i := 0; i < wideMapKeys; i++ {
+		fmt.Fprintf(&b, "      d%d: 1.0.0\n", i)
+	}
+	path := writeFile(t, t.TempDir(), "pnpm-lock.yaml", b.String())
+
+	if _, err := parseWithin(t, path); err == nil {
+		t.Fatal("want an error for an oversized mapping, got nil")
+	}
+}
+
+// TestHostile_WideEntryYarnBerry: one berry entry with a huge mapping is
+// rejected.
+func TestHostile_WideEntryYarnBerry(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("__metadata:\n  version: 8\n\n\"d1@npm:1.0.0\":\n  version: 1.0.0\n  dependencies:\n")
+	for i := 0; i < wideMapKeys; i++ {
+		fmt.Fprintf(&b, "    d%d: 1.0.0\n", i)
+	}
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"dependencies":{"d1":"1.0.0"}}`)
+	path := writeFile(t, dir, "yarn.lock", b.String())
+
+	if _, err := parseWithin(t, path); err == nil {
+		t.Fatal("want an error for an oversized mapping, got nil")
+	}
+}
+
+// TestHostile_ManyEntriesYarnBerry: the berry top level has one entry per
+// locked package, so a long lockfile parses in linear time.
+func TestHostile_ManyEntriesYarnBerry(t *testing.T) {
+	const entries = 12_000
+	var b strings.Builder
+	b.WriteString("__metadata:\n  version: 8\n")
+	for i := 0; i < entries; i++ {
+		fmt.Fprintf(&b, "\"d%d@npm:1.0.0\": {version: 1.0.%d}\n", i, i)
+	}
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"dependencies":{"d7":"1.0.0"}}`)
+	path := writeFile(t, dir, "yarn.lock", b.String())
+
+	pkgs, err := parseWithin(t, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pkgs) != 1 || pkgs[0].Name != "d7" || pkgs[0].Version != "1.0.7" {
+		t.Fatalf("got %+v, want d7 1.0.7", pkgs)
+	}
+}
+
+func TestHostile_DuplicateEntryYarnBerry(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"dependencies":{"d1":"1.0.0"}}`)
+	path := writeFile(t, dir, "yarn.lock", "__metadata:\n  version: 8\n\"d1@npm:1.0.0\":\n  version: 1.0.0\n\"d1@npm:1.0.0\":\n  version: 6.6.6\n")
+
+	if _, err := parseWithin(t, path); err == nil {
+		t.Fatal("want a duplicate-entry error, got nil")
+	}
+}

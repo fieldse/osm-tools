@@ -56,7 +56,7 @@ func parsePnpmLock(path string) ([]Package, error) {
 		return nil, fmt.Errorf("read pnpm-lock.yaml %q: %w", path, err)
 	}
 	var lock pnpmLock
-	if err := decodeYAML(data, &lock); err != nil {
+	if err := decodeYAML(data, &lock, "importers", "dependencies", "devDependencies", "optionalDependencies"); err != nil {
 		return nil, fmt.Errorf("parse pnpm-lock.yaml %q: %w", path, err)
 	}
 
@@ -106,17 +106,6 @@ func pnpmVersion(key, ref string) (name, version string, ok bool) {
 		return "", "", false
 	}
 	return name, npmExactVersion(v), true
-}
-
-// decodeYAML unmarshals untrusted YAML into typed dst, turning any decoder
-// panic into an error.
-func decodeYAML(data []byte, dst any) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("YAML decoder failed: %v", r)
-		}
-	}()
-	return yaml.Unmarshal(data, dst)
 }
 
 func sortedKeys[V any](m map[string]V) []string {
