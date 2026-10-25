@@ -27,7 +27,7 @@ func newSweepCmd(deps *appDeps) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&file, "file", "f", "", "manifest file (package.json, requirements.txt, package-lock.json, poetry.lock)")
+	cmd.Flags().StringVarP(&file, "file", "f", "", "manifest file (package.json, package-lock.json, pnpm-lock.yaml, yarn.lock, requirements.txt, poetry.lock)")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "table", "output format: table|json")
 	cmd.Flags().BoolVar(&failOnAny, "fail-on-any", false, "exit non-zero if any dependency is malicious (CI gate)")
 	cmd.MarkFlagRequired("file")

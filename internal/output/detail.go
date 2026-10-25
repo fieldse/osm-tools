@@ -8,19 +8,19 @@ import (
 	"strings"
 
 	"github.com/fieldse/osm-tools/internal/client"
+	"github.com/fieldse/osm-tools/internal/verdict"
 )
 
 // CheckDetail renders a single check result as a human-readable block. label is
 // the resource that was checked (name, domain, IP, or image reference) and
-// kind is the resolved type.
-func CheckDetail(w io.Writer, label, kind string, r client.CheckResult) {
-	status := "CLEAN"
-	if r.Malicious {
-		status = "MALICIOUS"
-	}
-
+// kind is the resolved type. note, when non-empty, explains how the verdict
+// was reached.
+func CheckDetail(w io.Writer, label, kind string, r client.CheckResult, status verdict.Status, note string) {
 	fmt.Fprintf(w, "%s (%s)\n", label, kind)
 	fmt.Fprintf(w, "  status:      %s\n", status)
+	if note != "" {
+		fmt.Fprintf(w, "  note:        %s\n", note)
+	}
 
 	// Threat metadata lives in Details; for clean results it's empty, so only
 	// print what carries signal.

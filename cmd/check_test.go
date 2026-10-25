@@ -92,6 +92,11 @@ func TestResolveCheckType(t *testing.T) {
 		{"explicit type override", "express", "domain", "", infer.TypeDomain, false},
 		{"explicit package still needs ecosystem", "whatever", "package", "", "", true},
 		{"unknown type flag", "x", "bogus", "", "", true},
+		{"ecosystem forces package", "lodash.merge", "", "npm", infer.TypePackage, false},
+		{"type wins over ecosystem", "evil.com", "domain", "npm", infer.TypeDomain, false},
+		{"url rejected", "https://example.com/x", "", "", "", true},
+		{"url rejected as domain", "https://example.com/x", "domain", "", "", true},
+		{"wallet type rejected", "x", "wallet", "", "", true},
 	}
 
 	for _, tt := range tests {
@@ -110,5 +115,38 @@ func TestResolveCheckType(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCheckEcosystem(t *testing.T) {
+	if got, err := checkEcosystem(" PyPI "); err != nil || got != "pypi" {
+		t.Errorf("checkEcosystem(PyPI) = %q, %v; want pypi, nil", got, err)
+	}
+	if got, err := checkEcosystem(""); err != nil || got != "" {
+		t.Errorf("checkEcosystem(\"\") = %q, %v; want empty, nil", got, err)
+	}
+	var usage *osmerr.UsageError
+	if _, err := checkEcosystem("cargo"); !errors.As(err, &usage) {
+		t.Errorf("checkEcosystem(cargo) err = %v, want UsageError", err)
+	}
+}
+
+func TestMavenArtifactID(t *testing.T) {
+	tests := []struct {
+		q      client.Query
+		want   string
+		wantOK bool
+	}{
+		{client.Query{Type: "package", Ecosystem: "maven", Identifier: "org.example:lib"}, "lib", true},
+		{client.Query{Type: "package", Ecosystem: "maven", Identifier: "a:b:c"}, "c", true},
+		{client.Query{Type: "package", Ecosystem: "maven", Identifier: "lib"}, "", false},
+		{client.Query{Type: "package", Ecosystem: "maven", Identifier: "org.example:"}, "", false},
+		{client.Query{Type: "package", Ecosystem: "npm", Identifier: "a:b"}, "", false},
+	}
+	for _, tt := range tests {
+		got, ok := mavenArtifactID(tt.q)
+		if got != tt.want || ok != tt.wantOK {
+			t.Errorf("mavenArtifactID(%+v) = %q, %v; want %q, %v", tt.q, got, ok, tt.want, tt.wantOK)
+		}
 	}
 }

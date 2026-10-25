@@ -10,6 +10,11 @@ type CheckResult struct {
 	ThreatCount        int     `json:"threat_count"`
 	Message            string  `json:"message"` // present on not-found responses
 	Details            Details `json:"details"`
+
+	// Warning and KnownMaliciousVersions are set when the package has malicious
+	// versions but the queried version is not one of them.
+	Warning                string   `json:"warning"`
+	KnownMaliciousVersions []string `json:"known_malicious_versions"`
 }
 
 // Details holds the threat metadata returned when a resource is malicious.
@@ -18,6 +23,7 @@ type Details struct {
 	Status        string   `json:"status"`
 	SeverityLevel string   `json:"severity_level"`
 	Description   string   `json:"description"`
+	VersionInfo   string   `json:"version_info"` // "all", blank, or a comma-separated version list
 	Tags          []string `json:"tags"`
 	FirstSeen     string   `json:"first_seen"`
 	LastSeen      string   `json:"last_seen"`

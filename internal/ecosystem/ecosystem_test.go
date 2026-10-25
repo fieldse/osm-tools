@@ -3,8 +3,8 @@ package ecosystem
 import "testing"
 
 func TestAll(t *testing.T) {
-	if len(All()) != 8 {
-		t.Errorf("All() returned %d ecosystems, want 8", len(All()))
+	if len(All()) != 12 {
+		t.Errorf("All() returned %d ecosystems, want 12", len(All()))
 	}
 	// Mutating the returned slice must not affect the canonical list.
 	All()[0] = "mutated"
