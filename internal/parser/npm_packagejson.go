@@ -11,8 +11,9 @@ import (
 // packageJSON is the minimal shape we read from a package.json manifest. Only
 // direct dependency maps are decoded; everything else is ignored.
 type packageJSON struct {
-	Dependencies    map[string]string `json:"dependencies"`
-	DevDependencies map[string]string `json:"devDependencies"`
+	Dependencies         map[string]string `json:"dependencies"`
+	DevDependencies      map[string]string `json:"devDependencies"`
+	OptionalDependencies map[string]string `json:"optionalDependencies"`
 }
 
 // readPackageJSON reads and decodes the package.json at path.
@@ -28,20 +29,21 @@ func readPackageJSON(path string) (packageJSON, error) {
 	return manifest, nil
 }
 
-// directSpecs merges dependencies and devDependencies into one name→spec map.
+// directSpecs merges dependencies, devDependencies and optionalDependencies
+// into one name→spec map.
 func (m packageJSON) directSpecs() map[string]string {
-	specs := make(map[string]string, len(m.Dependencies)+len(m.DevDependencies))
-	for name, spec := range m.Dependencies {
-		specs[name] = spec
-	}
-	for name, spec := range m.DevDependencies {
-		specs[name] = spec
+	specs := make(map[string]string, len(m.Dependencies)+len(m.DevDependencies)+len(m.OptionalDependencies))
+	for _, deps := range []map[string]string{m.Dependencies, m.DevDependencies, m.OptionalDependencies} {
+		for name, spec := range deps {
+			specs[name] = spec
+		}
 	}
 	return specs
 }
 
 // parsePackageJSON reads the package.json at path and returns its direct
-// dependencies, merging the dependencies and devDependencies objects. Only an
+// dependencies, merging the dependencies, devDependencies and
+// optionalDependencies objects. Only an
 // exact version is kept; a range leaves Version empty, and non-registry specs
 // are skipped (see npmSpec). The result is sorted by Name.
 func parsePackageJSON(path string) ([]Package, error) {

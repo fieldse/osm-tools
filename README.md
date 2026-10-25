@@ -83,7 +83,7 @@ Supported manifests:
 - `requirements.txt`
 - `poetry.lock`
 
-Sweep checks direct dependencies only. `yarn.lock` cannot tell direct deps from transitive ones, so sweep reads the `package.json` beside it. If that file is missing, sweep exits 1.
+Sweep checks direct dependencies only. For npm manifests that means `dependencies`, `devDependencies` and `optionalDependencies`. `yarn.lock` cannot tell direct deps from transitive ones, so sweep reads the `package.json` beside it. If that file is missing, sweep exits 1.
 
 Only exact versions are sent. A range such as `^1.14.0` is looked up with no version, and a hit on specific versions then shows as `REVIEW`. Local and git dependencies (`workspace:`, `file:`, `link:`, git and tarball URLs) are skipped.
 

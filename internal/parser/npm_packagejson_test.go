@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"path/filepath"
+	"reflect"
 	"sort"
 	"testing"
 
@@ -83,5 +85,79 @@ func TestParsePackageJSONSorted(t *testing.T) {
 	}
 	if !sort.SliceIsSorted(got, func(i, j int) bool { return got[i].Name < got[j].Name }) {
 		t.Errorf("result is not sorted by Name: %+v", got)
+	}
+}
+
+// TestOptionalDependenciesAreDirect: npm and yarn install optionalDependencies
+// by default, so every npm format returns them as direct deps.
+func TestOptionalDependenciesAreDirect(t *testing.T) {
+	const pkgJSON = `{"dependencies":{"axios":"1.14.1"},"optionalDependencies":{"evil-pkg":"^1.0.0"}}`
+	tests := []struct {
+		name     string
+		manifest string
+		files    map[string]string
+		want     []Package
+	}{
+		{
+			name:     "package.json",
+			manifest: "package.json",
+			files:    map[string]string{"package.json": pkgJSON},
+			want: []Package{
+				{Name: "axios", Version: "1.14.1", Ecosystem: ecosystem.NPM},
+				{Name: "evil-pkg", Version: "", Ecosystem: ecosystem.NPM},
+			},
+		},
+		{
+			name:     "package-lock.json",
+			manifest: "package-lock.json",
+			files: map[string]string{"package-lock.json": `{"lockfileVersion":3,"packages":{
+				"":{"dependencies":{"axios":"1.14.1"},"optionalDependencies":{"evil-pkg":"^1.0.0"}},
+				"node_modules/axios":{"version":"1.14.1"},
+				"node_modules/evil-pkg":{"version":"1.0.0","optional":true}}}`},
+			want: []Package{
+				{Name: "axios", Version: "1.14.1", Ecosystem: ecosystem.NPM},
+				{Name: "evil-pkg", Version: "1.0.0", Ecosystem: ecosystem.NPM},
+			},
+		},
+		{
+			name:     "yarn.lock v1",
+			manifest: "yarn.lock",
+			files: map[string]string{
+				"package.json": pkgJSON,
+				"yarn.lock":    "# yarn lockfile v1\n\naxios@1.14.1:\n  version \"1.14.1\"\n\nevil-pkg@^1.0.0:\n  version \"1.0.0\"\n",
+			},
+			want: []Package{
+				{Name: "axios", Version: "1.14.1", Ecosystem: ecosystem.NPM},
+				{Name: "evil-pkg", Version: "1.0.0", Ecosystem: ecosystem.NPM},
+			},
+		},
+		{
+			name:     "yarn.lock berry",
+			manifest: "yarn.lock",
+			files: map[string]string{
+				"package.json": pkgJSON,
+				"yarn.lock": "__metadata:\n  version: 8\n\n\"axios@npm:1.14.1\":\n  version: 1.14.1\n\n" +
+					"\"evil-pkg@npm:^1.0.0\":\n  version: 1.0.0\n",
+			},
+			want: []Package{
+				{Name: "axios", Version: "1.14.1", Ecosystem: ecosystem.NPM},
+				{Name: "evil-pkg", Version: "1.0.0", Ecosystem: ecosystem.NPM},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, body := range tt.files {
+				writeFile(t, dir, name, body)
+			}
+			got, err := Parse(filepath.Join(dir, tt.manifest))
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
