@@ -29,6 +29,8 @@ export OSM_API_KEY=osm_...              # current shell only
 osm check evil.com --token osm_...      # one-off
 ```
 
+Check your setup with `osm config --show`. It shows the saved token (masked) and whether `OSM_API_KEY` overrides it.
+
 ---
 
 ## Commands
@@ -148,6 +150,7 @@ See the [submit guide](docs/submit.md) for copy-paste examples of each mode, def
 | Flag | Short | Commands | Description |
 |---|---|---|---|
 | `--token` | `-t` | all | API key |
+| `--show` | | `config` | Show the saved token (masked) and whether `OSM_API_KEY` overrides it |
 | `--ecosystem` | `-e` | `check`, `latest` | Package ecosystem (e.g. `npm`, `pypi`); on `check`, makes it a package lookup |
 | `--type` | `-T` | `check` | Asset type override (`package`, `domain`, `ip`, `docker`) |
 | `--version` | | `check` | Package version |
