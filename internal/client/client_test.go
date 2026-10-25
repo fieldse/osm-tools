@@ -77,13 +77,15 @@ func TestCheck_ErrorStatuses(t *testing.T) {
 		name       string
 		status     int
 		retryAfter string
+		body       string
 		check      func(*osmerr.APIError) bool
 	}{
-		{"401 auth", http.StatusUnauthorized, "", (*osmerr.APIError).IsAuth},
-		{"403 auth", http.StatusForbidden, "", (*osmerr.APIError).IsAuth},
-		{"429 rate limit", http.StatusTooManyRequests, "30", (*osmerr.APIError).IsRateLimit},
-		{"500 server", http.StatusInternalServerError, "", (*osmerr.APIError).IsServer},
-		{"503 server", http.StatusServiceUnavailable, "", (*osmerr.APIError).IsServer},
+		{"401 auth", http.StatusUnauthorized, "", "error body", (*osmerr.APIError).IsAuth},
+		{"403 auth", http.StatusForbidden, "", "error body", (*osmerr.APIError).IsAuth},
+		// A daily-quota body is not retried, so the 30s Retry-After is not waited out.
+		{"429 rate limit", http.StatusTooManyRequests, "30", `{"error":"Daily quota exceeded"}`, (*osmerr.APIError).IsRateLimit},
+		{"500 server", http.StatusInternalServerError, "", "error body", (*osmerr.APIError).IsServer},
+		{"503 server", http.StatusServiceUnavailable, "", "error body", (*osmerr.APIError).IsServer},
 	}
 
 	for _, tt := range tests {
@@ -93,7 +95,7 @@ func TestCheck_ErrorStatuses(t *testing.T) {
 					w.Header().Set("Retry-After", tt.retryAfter)
 				}
 				w.WriteHeader(tt.status)
-				w.Write([]byte("error body"))
+				w.Write([]byte(tt.body))
 			}))
 			defer srv.Close()
 
