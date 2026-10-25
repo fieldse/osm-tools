@@ -60,45 +60,103 @@ func secret(tok string) func(context.Context, io.Writer) (string, error) {
 	return func(context.Context, io.Writer) (string, error) { return tok, nil }
 }
 
-func TestConfig_ShowMasksToken(t *testing.T) {
-	s := storeWith(t, savedToken)
-	var out bytes.Buffer
-	cmd := newConfigCmd()
-	cmd.SetOut(&out)
-	cmd.SetContext(context.Background())
-	if err := runConfig(cmd, configOptions{show: true, store: s, getenv: noEnv}); err != nil {
-		t.Fatal(err)
-	}
-	got := out.String()
-	if strings.Contains(got, savedToken) {
-		t.Fatalf("full token printed:\n%s", got)
-	}
-	for _, want := range []string{"Saved token: …wxyz", "OSM_API_KEY: not set"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %q in:\n%s", want, got)
-		}
-	}
-}
-
-func TestConfig_ShowReportsEnvOverrideAndNoToken(t *testing.T) {
+// showOutput runs `osm config --show` against store s with the given env value
+// for OSM_API_KEY and returns the output.
+func showOutput(t *testing.T, s *config.Store, envKey string) string {
+	t.Helper()
 	var out bytes.Buffer
 	cmd := newConfigCmd()
 	cmd.SetOut(&out)
 	cmd.SetContext(context.Background())
 	env := func(k string) string {
 		if k == "OSM_API_KEY" {
-			return "osm_fromenv"
+			return envKey
 		}
 		return ""
 	}
-	if err := runConfig(cmd, configOptions{show: true, store: storeWith(t, ""), getenv: env}); err != nil {
+	if err := runConfig(cmd, configOptions{show: true, store: s, getenv: env}); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Saved token: none", "overrides the saved token"} {
-		if !strings.Contains(out.String(), want) {
-			t.Errorf("missing %q in:\n%s", want, out.String())
+	return out.String()
+}
+
+// assertValuesAligned checks that each line is a "- label:" list item and
+// that every value starts at the same byte offset.
+func assertValuesAligned(t *testing.T, got string) {
+	t.Helper()
+	lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want 3 lines, got %d:\n%s", len(lines), got)
+	}
+	col := -1
+	for _, l := range lines {
+		if !strings.HasPrefix(l, "- ") {
+			t.Errorf("line %q is not a list item", l)
+		}
+		colon := strings.Index(l, ":")
+		if colon < 0 {
+			t.Fatalf("line %q has no label", l)
+		}
+		rest := l[colon+1:]
+		off := colon + 1 + len(rest) - len(strings.TrimLeft(rest, " "))
+		if off-colon-1 < 2 {
+			t.Errorf("line %q: want at least 2 spaces before the value", l)
+		}
+		if col == -1 {
+			col = off
+		} else if off != col {
+			t.Errorf("value columns differ: %d vs %d in:\n%s", col, off, got)
 		}
 	}
+}
+
+func TestConfig_ShowMasksToken(t *testing.T) {
+	got := showOutput(t, storeWith(t, savedToken), "")
+	if strings.Contains(got, savedToken) {
+		t.Fatalf("full token printed:\n%s", got)
+	}
+	for _, want := range []string{"- config file:   ", "- saved token:   osm_s*****\n", "- OSM_API_KEY:   not set\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	assertValuesAligned(t, got)
+}
+
+func TestConfig_ShowReportsEnvOverrideAndNoToken(t *testing.T) {
+	const envKey = "osm_fromenv000000000000"
+	got := showOutput(t, storeWith(t, ""), envKey)
+	if strings.Contains(got, envKey) {
+		t.Fatalf("full OSM_API_KEY value printed:\n%s", got)
+	}
+	for _, want := range []string{"- saved token:   none\n", "- OSM_API_KEY:   osm_f***** (overrides the saved token)\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	assertValuesAligned(t, got)
+}
+
+func TestConfig_ShowMasksBothTokens(t *testing.T) {
+	const envKey = "osm_fromenv000000000000"
+	got := showOutput(t, storeWith(t, savedToken), envKey)
+	for _, full := range []string{savedToken, envKey} {
+		if strings.Contains(got, full) {
+			t.Errorf("full token %q printed:\n%s", full, got)
+		}
+	}
+	assertValuesAligned(t, got)
+}
+
+func TestConfig_ShowShortEnvKey(t *testing.T) {
+	got := showOutput(t, storeWith(t, ""), "osm_short")
+	if strings.Contains(got, "osm_short") {
+		t.Fatalf("short OSM_API_KEY value printed:\n%s", got)
+	}
+	if !strings.Contains(got, "- OSM_API_KEY:   set (too short to preview) (overrides the saved token)\n") {
+		t.Errorf("unexpected output:\n%s", got)
+	}
+	assertValuesAligned(t, got)
 }
 
 func TestConfig_ShowWorksWithoutTerminal(t *testing.T) {
@@ -132,7 +190,7 @@ func TestConfig_ExistingTokenDeclineKeepsIt(t *testing.T) {
 		if strings.Contains(out, savedToken) {
 			t.Errorf("answer %q: full saved token printed at the confirm prompt:\n%s", answer, out)
 		}
-		if !strings.Contains(out, "…wxyz") {
+		if !strings.Contains(out, "A token is already saved: osm_s*****\n") {
 			t.Errorf("answer %q: confirm prompt missing masked token:\n%s", answer, out)
 		}
 	}
@@ -318,12 +376,13 @@ func TestMaskToken(t *testing.T) {
 	tests := []struct {
 		name, in, want string
 	}{
-		{"long", "osm_abcdefghijklmnop1234", "…1234"},
+		{"long", "osm_abcdefghijklmnopqrstu", "osm_a*****"},
+		{"very long, same mask length", strings.Repeat("osm_x", 40), "osm_x*****"},
 		{"short", "osm_q7z", short},
 		{"19 chars", "osm_abcdefghijk1234", short},
-		{"20 chars", "osm_abcdefghijkl1234", "…1234"},
+		{"20 chars", "osm_abcdefghijkl1234", "osm_a*****"},
 		{"19 runes, more than 20 bytes", "osm_ééééééééééé1234", short},
-		{"non-ASCII tail", "osm_abcdefghijklé日本ü", "…é日本ü"},
+		{"20 runes, non-ASCII prefix", "日本éü_abcdefghijk1234", "日本éü_*****"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

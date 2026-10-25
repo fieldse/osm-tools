@@ -72,10 +72,11 @@ func runConfig(cmd *cobra.Command, o configOptions) error {
 	if err != nil {
 		return err
 	}
-	envSet := strings.TrimSpace(getenv("OSM_API_KEY")) != ""
+	envKey := strings.TrimSpace(getenv("OSM_API_KEY"))
+	envSet := envKey != ""
 
 	if o.show {
-		showConfig(cmd.OutOrStdout(), store.Path(), cfg.Token, envSet)
+		showConfig(cmd.OutOrStdout(), store.Path(), cfg.Token, envKey)
 		return nil
 	}
 
@@ -136,28 +137,41 @@ func runConfig(cmd *cobra.Command, o configOptions) error {
 	return nil
 }
 
-// showConfig prints where the token comes from without revealing it.
-func showConfig(w io.Writer, path, token string, envSet bool) {
-	fmt.Fprintf(w, "Config file: %s\n", path)
-	if token == "" {
-		fmt.Fprintln(w, "Saved token: none")
-	} else {
-		fmt.Fprintf(w, "Saved token: %s\n", maskToken(token))
+// showConfig prints where the token comes from without revealing it, as list
+// items with the values in one aligned column.
+func showConfig(w io.Writer, path, token, envKey string) {
+	saved := "none"
+	if token != "" {
+		saved = maskToken(token)
 	}
-	if envSet {
-		fmt.Fprintln(w, "OSM_API_KEY: set (overrides the saved token)")
-	} else {
-		fmt.Fprintln(w, "OSM_API_KEY: not set")
+	env := "not set"
+	if envKey != "" {
+		env = maskToken(envKey) + " (overrides the saved token)"
+	}
+	rows := [][2]string{
+		{"config file:", path},
+		{"saved token:", saved},
+		{"OSM_API_KEY:", env},
+	}
+	width := 0
+	for _, r := range rows {
+		width = max(width, len(r[0]))
+	}
+	for _, r := range rows {
+		fmt.Fprintf(w, "- %-*s%s\n", width+3, r[0], r[1])
 	}
 }
 
-// maskToken shows only the last four characters of a token of 20 or more.
+// maskPrefixLen is how many leading runes of a token maskToken reveals.
+const maskPrefixLen = 5
+
+// maskToken shows the first five characters of a token of 20 or more, then a
+// fixed run of asterisks so the token's length is not revealed.
 func maskToken(t string) string {
 	if utf8.RuneCountInString(t) < 20 {
 		return "set (too short to preview)"
 	}
-	r := []rune(t)
-	return "…" + string(r[len(r)-4:])
+	return string([]rune(t)[:maskPrefixLen]) + "*****"
 }
 
 // readLine reads one line from r, returning errInterrupted if ctx is cancelled
