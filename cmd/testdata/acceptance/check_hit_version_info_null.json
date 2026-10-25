@@ -1,0 +1,1 @@
+{"malicious":true,"version":null,"osm_url":"https://opensourcemalware.com/npm/evil-pkg","threat_count":1,"details":{"threat_id":"0c9d1e2f-3a4b-4c5d-8e6f-7a8b9c0d1e2f","severity_level":"high","description":"Every release exfiltrates environment variables","version_info":null}}

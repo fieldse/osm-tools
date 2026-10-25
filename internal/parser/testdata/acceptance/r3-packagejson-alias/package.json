@@ -1,0 +1,13 @@
+{
+  "name": "r3-alias-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "my-axios": "npm:axios@1.14.1",
+    "scoped-alias": "npm:@scope/real@2.0.0",
+    "ranged-alias": "npm:string-width@^4.2.0"
+  },
+  "devDependencies": {
+    "dev-alias": "npm:lodash@4.17.21"
+  }
+}

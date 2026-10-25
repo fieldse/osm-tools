@@ -1,0 +1,15 @@
+{
+  "name": "r3-exact-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "exact-plain": "1.2.3",
+    "exact-eq": "=1.2.3",
+    "exact-pre": "1.2.3-beta.1"
+  },
+  "devDependencies": {
+    "dev-exact-plain": "4.17.21",
+    "dev-exact-eq": "=29.7.0",
+    "dev-exact-pre": "5.0.0-rc.2"
+  }
+}

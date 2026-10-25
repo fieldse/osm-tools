@@ -1,0 +1,1 @@
+{"malicious":true,"version":null,"osm_url":"https://opensourcemalware.com/threat/7f3c9e21-4b8a-4d6e-a1f0-3c5b7d9e2a64","threat_count":1,"details":{"threat_id":"7f3c9e21-4b8a-4d6e-a1f0-3c5b7d9e2a64","severity_level":"high","description":"Single trojaned release ships a credential stealer","version_info":"2.0.1"}}
