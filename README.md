@@ -29,7 +29,16 @@ export OSM_API_KEY=osm_...              # current shell only
 osm check evil.com --token osm_...      # one-off
 ```
 
-Check your setup with `osm config --show`. It shows the saved token (masked) and whether `OSM_API_KEY` overrides it.
+Check your setup with `osm config --show`. Tokens show only their first five characters.
+
+```
+$ osm config --show
+- config file:   ~/.osm/config.json
+- saved token:   osm_a*****
+- OSM_API_KEY:   not set
+```
+
+If `OSM_API_KEY` is set, it is shown masked the same way and overrides the saved token.
 
 ---
 
