@@ -6,7 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/fieldse/osm-tools/internal/client"
@@ -138,22 +140,106 @@ func TestCheckEcosystem(t *testing.T) {
 	}
 }
 
-func TestMavenArtifactID(t *testing.T) {
+func TestParseMavenCoord(t *testing.T) {
+	maven := func(id string) client.Query {
+		return client.Query{Type: "package", Ecosystem: "maven", Identifier: id}
+	}
 	tests := []struct {
 		q      client.Query
-		want   string
+		want   mavenCoord
 		wantOK bool
 	}{
-		{client.Query{Type: "package", Ecosystem: "maven", Identifier: "org.example:lib"}, "lib", true},
-		{client.Query{Type: "package", Ecosystem: "maven", Identifier: "a:b:c"}, "c", true},
-		{client.Query{Type: "package", Ecosystem: "maven", Identifier: "lib"}, "", false},
-		{client.Query{Type: "package", Ecosystem: "maven", Identifier: "org.example:"}, "", false},
-		{client.Query{Type: "package", Ecosystem: "npm", Identifier: "a:b"}, "", false},
+		{maven("org.example:lib"), mavenCoord{"org.example:lib", "lib", ""}, true},
+		{maven("a:b:c"), mavenCoord{"a:b", "b", "c"}, true},
+		{maven("org.example:evil-lib:1.2.3"), mavenCoord{"org.example:evil-lib", "evil-lib", "1.2.3"}, true},
+		{maven("org.example:evil-lib:jar:1.2.3"), mavenCoord{"org.example:evil-lib", "evil-lib", "1.2.3"}, true},
+		{maven("org.example:evil-lib:jar:sources:1.2.3"), mavenCoord{"org.example:evil-lib", "evil-lib", "1.2.3"}, true},
+		{maven("lib"), mavenCoord{}, false},
+		{maven("org.example:"), mavenCoord{}, false},
+		{maven("org.example::1.0"), mavenCoord{}, false},
+		{client.Query{Type: "package", Ecosystem: "npm", Identifier: "a:b"}, mavenCoord{}, false},
 	}
 	for _, tt := range tests {
-		got, ok := mavenArtifactID(tt.q)
+		got, ok := parseMavenCoord(tt.q)
 		if got != tt.want || ok != tt.wantOK {
-			t.Errorf("mavenArtifactID(%+v) = %q, %v; want %q, %v", tt.q, got, ok, tt.want, tt.wantOK)
+			t.Errorf("parseMavenCoord(%q) = %+v, %v; want %+v, %v", tt.q.Identifier, got, ok, tt.want, tt.wantOK)
 		}
+	}
+}
+
+// mavenServer answers check-malicious from records keyed by identifier and
+// logs each request's identifier and version.
+func mavenServer(t *testing.T, records map[string]string) (*httptest.Server, *[][2]string) {
+	t.Helper()
+	var mu sync.Mutex
+	var reqs [][2]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id, v := r.URL.Query().Get("resource_identifier"), r.URL.Query().Get("version")
+		mu.Lock()
+		reqs = append(reqs, [2]string{id, v})
+		mu.Unlock()
+		if body, ok := records[id]; ok {
+			w.Write([]byte(body))
+			return
+		}
+		w.Write([]byte(`{"malicious":false}`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &reqs
+}
+
+func TestCheckCmd_MavenGAVFallback(t *testing.T) {
+	const listed = `{"malicious":true,"details":{"severity_level":"high","version_info":"1.2.3, 1.2.4"}}`
+	tests := []struct {
+		name    string
+		args    []string
+		records map[string]string
+		want    [][2]string
+		verdict string
+	}{
+		{
+			name:    "GAV hit on groupId:artifactId uses the coordinate version",
+			args:    []string{"org.example:evil-lib:1.2.3"},
+			records: map[string]string{"org.example:evil-lib": listed},
+			want:    [][2]string{{"org.example:evil-lib:1.2.3", ""}, {"org.example:evil-lib", "1.2.3"}},
+			verdict: "MALICIOUS",
+		},
+		{
+			name:    "GAV with packaging hit on bare artifactId",
+			args:    []string{"org.example:evil-lib:jar:1.2.3"},
+			records: map[string]string{"evil-lib": listed},
+			want: [][2]string{
+				{"org.example:evil-lib:jar:1.2.3", ""},
+				{"org.example:evil-lib", "1.2.3"},
+				{"evil-lib", "1.2.3"},
+			},
+			verdict: "REVIEW",
+		},
+		{
+			name:    "--version overrides the coordinate version",
+			args:    []string{"org.example:evil-lib:1.2.3", "--version", "9.9.9"},
+			records: map[string]string{},
+			want: [][2]string{
+				{"org.example:evil-lib:1.2.3", "9.9.9"},
+				{"org.example:evil-lib", "9.9.9"},
+				{"evil-lib", "9.9.9"},
+			},
+			verdict: "CLEAN",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, reqs := mavenServer(t, tt.records)
+			out, err := runCheckCmd(t, testDeps(srv), append(tt.args, "-e", "maven")...)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(*reqs, tt.want) {
+				t.Errorf("requests = %v, want %v", *reqs, tt.want)
+			}
+			if !strings.Contains(out, tt.verdict) {
+				t.Errorf("want verdict %s in output:\n%s", tt.verdict, out)
+			}
+		})
 	}
 }

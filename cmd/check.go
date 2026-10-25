@@ -132,9 +132,10 @@ func unsupportedAsset(kind string) error {
 }
 
 // checkWithMavenFallback runs q and returns the result, its verdict and an
-// optional note. A CLEAN Maven groupId:artifactId lookup is retried once with
-// the bare artifactId, since OSM stores Maven records under either form; a hit
-// found only that way is at most REVIEW.
+// optional note. OSM stores Maven records under groupId:artifactId or the bare
+// artifactId, so a CLEAN Maven lookup is retried: a full coordinate with a
+// version is tried as groupId:artifactId, then the bare artifactId is tried. A
+// hit found only by the bare artifactId is at most REVIEW.
 func checkWithMavenFallback(ctx context.Context, l cache.Lookup, q client.Query) (client.CheckResult, verdict.Status, string, error) {
 	res, err := l.Check(ctx, q)
 	if err != nil {
@@ -142,34 +143,64 @@ func checkWithMavenFallback(ctx context.Context, l cache.Lookup, q client.Query)
 	}
 	status := verdict.Of(res, q.Version, false)
 
-	artifact, ok := mavenArtifactID(q)
+	coord, ok := parseMavenCoord(q)
 	if status != verdict.Clean || !ok {
 		return res, status, "", nil
 	}
+	version := q.Version
+	if version == "" {
+		version = coord.version
+	}
+
+	if coord.version != "" {
+		gq := q
+		gq.Identifier, gq.Version = coord.groupArtifact, version
+		gres, err := l.Check(ctx, gq)
+		if err != nil {
+			return client.CheckResult{}, "", "", err
+		}
+		if gstatus := verdict.Of(gres, version, false); gstatus != verdict.Clean {
+			note := fmt.Sprintf("no record for %q; matched %q at version %q", q.Identifier, coord.groupArtifact, version)
+			return gres, gstatus, note, nil
+		}
+	}
 
 	fq := q
-	fq.Identifier = artifact
+	fq.Identifier, fq.Version = coord.artifact, version
 	fres, err := l.Check(ctx, fq)
 	if err != nil {
 		return client.CheckResult{}, "", "", err
 	}
-	fstatus := verdict.Of(fres, q.Version, true)
+	fstatus := verdict.Of(fres, version, true)
 	if fstatus == verdict.Clean {
 		return res, status, "", nil
 	}
-	note := fmt.Sprintf("no record for %q; matched artifactId %q only, which may belong to a different groupId", q.Identifier, artifact)
+	note := fmt.Sprintf("no record for %q; matched artifactId %q only, which may belong to a different groupId", q.Identifier, coord.artifact)
 	return fres, fstatus, note, nil
 }
 
-// mavenArtifactID returns the text after the last ":" of a Maven package
-// identifier, if there is a non-empty one.
-func mavenArtifactID(q client.Query) (string, bool) {
+// mavenCoord is a Maven coordinate split into the forms OSM stores records
+// under. version is the last field of g:a:v, g:a:packaging:v or
+// g:a:packaging:classifier:v, and empty for g:a.
+type mavenCoord struct {
+	groupArtifact string
+	artifact      string
+	version       string
+}
+
+// parseMavenCoord splits a Maven package identifier that has a non-empty
+// artifactId field.
+func parseMavenCoord(q client.Query) (mavenCoord, bool) {
 	if q.Type != infer.TypePackage || q.Ecosystem != ecosystem.Maven {
-		return "", false
+		return mavenCoord{}, false
 	}
-	i := strings.LastIndex(q.Identifier, ":")
-	if i < 0 || i == len(q.Identifier)-1 {
-		return "", false
+	parts := strings.Split(q.Identifier, ":")
+	if len(parts) < 2 || parts[1] == "" {
+		return mavenCoord{}, false
 	}
-	return q.Identifier[i+1:], true
+	c := mavenCoord{groupArtifact: parts[0] + ":" + parts[1], artifact: parts[1]}
+	if len(parts) > 2 {
+		c.version = parts[len(parts)-1]
+	}
+	return c, true
 }

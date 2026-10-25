@@ -56,7 +56,7 @@ Domains are lowercased before lookup. Package names are sent exactly as typed.
 
 The output lists the affected versions and the OSM page URL when the API returns them. `check` exits 0 for all three verdicts.
 
-For Maven, give `groupId:artifactId`. If that comes back clean, `check` retries once with the bare artifactId, because OSM stores some Maven records that way. A hit from the retry is reported as `REVIEW`, since the artifactId may belong to a different groupId.
+For Maven, give `groupId:artifactId`. If that comes back clean, `check` retries once with the bare artifactId, because OSM stores some Maven records that way. A hit from the retry is reported as `REVIEW`, since the artifactId may belong to a different groupId. A full coordinate with a version (`groupId:artifactId:version`, optionally with packaging and classifier) that comes back clean is first retried as `groupId:artifactId` at that version, unless `--version` is set, and then with the bare artifactId.
 
 > **Package names must match the registry exactly.** A clean result means "not in the database," not "verified safe." A typo'd or unscoped name will silently appear clean.
 
