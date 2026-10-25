@@ -47,7 +47,22 @@ osm check nginx:latest
 osm check aquasec/trivy -T docker     # untagged image
 ```
 
-**Packages** need `-e` with the ecosystem. Type the name exactly as the registry does: case, `@scope/` and separators all matter.
+**Packages** need `-e` with the package's ecosystem: the registry it is published on. Type the name exactly as that registry does: case, `@scope/` and separators all matter.
+
+| `-e` value | Registry |
+|---|---|
+| `npm` | npm (JavaScript) |
+| `pypi` | PyPI (Python) |
+| `maven` | Maven Central (Java) |
+| `nuget` | NuGet (.NET) |
+| `rubygems` | RubyGems (Ruby) |
+| `packagist` | Packagist (PHP) |
+| `crates` | crates.io (Rust) |
+| `go` | Go modules |
+| `vscode` | VS Code Marketplace extensions |
+| `openvsx` | Open VSX extensions |
+| `skills` | AI agent skill registries |
+| `brew` | Homebrew |
 
 **Domains, IPs and images** need no flag; `osm` detects them. An image with no tag, such as `aquasec/trivy`, needs `-T docker`.
 
@@ -113,7 +128,7 @@ osm latest -e npm
 osm latest -e npm,pypi,maven
 ```
 
-Supported ecosystems: `npm`, `pypi`, `maven`, `nuget`, `rubygems`, `packagist`, `crates`, `go`, `vscode`, `openvsx`, `skills`, `brew`. Names are lowercase; an unknown name exits 2. The same list applies to `check -e`.
+`-e` takes the same values as `check` (see the table under [`osm check`](#osm-check)). An unknown value exits 2.
 
 ### `osm submit`
 
