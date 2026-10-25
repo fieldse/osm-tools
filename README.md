@@ -110,13 +110,11 @@ Supported manifests:
 - `requirements.txt`
 - `poetry.lock`
 
-Sweep checks direct dependencies. For npm manifests that means `dependencies`, `devDependencies` and `optionalDependencies`. `yarn.lock` cannot tell direct deps from transitive ones, so sweep reads the `package.json` beside it. If that file is missing, sweep exits 1. Two formats check every locked package, transitive ones included: `poetry.lock` and v1 `package-lock.json`.
+Sweep checks the packages your project lists itself, not the packages those depend on. `yarn.lock` needs its `package.json` in the same folder.
 
-For npm manifests, only exact versions are sent. A range such as `^1.14.0` is looked up with no version, and a hit on specific versions then shows as `REVIEW`. Local and git dependencies (`workspace:`, `file:`, `link:`, git and tarball URLs) are skipped. In `requirements.txt`, a version is sent for any `==` pin, including wildcard pins such as `==1.0.*`. The verdict still treats those as non-exact.
+Use a lockfile when you can. `package.json` usually gives version ranges like `^1.14.0`, so sweep can't tell which version you have; those rows show `REVIEW` if OSM lists bad versions of the package.
 
-Each row shows the package, version, verdict (`MALICIOUS`, `REVIEW` or `CLEAN`, as for `check`), severity and affected versions. JSON rows also carry `osm_url` when present.
-
-Results are cached for 24 hours in `~/.osm/cache.json`.
+Local and git dependencies are skipped. Results are cached for 24 hours.
 
 ### `osm latest`
 
