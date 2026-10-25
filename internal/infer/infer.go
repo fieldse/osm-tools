@@ -40,20 +40,32 @@ var (
 
 	// bech32Wallet matches a native SegWit Bitcoin address in one case.
 	bech32Wallet = regexp.MustCompile(`^(bc1[02-9ac-hj-np-z]{11,71}|BC1[02-9AC-HJ-NP-Z]{11,71})$`)
+
+	// urlScheme matches any "<scheme>://" prefix (https, ssh, git+https, ftp, …).
+	urlScheme = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*://`)
+
+	// scpRepo matches git's scp-like form, user@host.tld:path. The dotted host
+	// keeps image digests such as name@sha256:… out.
+	scpRepo = regexp.MustCompile(`^[A-Za-z0-9._-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+:`)
 )
 
 // Type determines the check type from the input, applied in order:
 //
-//	http:// or https://  → url
-//	wallet address       → wallet
-//	IP address           → ip
+//	<scheme>://            → url
+//	user@host.tld:path     → repository
+//	wallet address         → wallet
+//	IP address             → ip
 //	contains ":" or a
-//	  known registry pfx → docker
-//	contains "."         → domain
-//	otherwise            → package (the default)
+//	  known registry pfx   → docker
+//	host.tld/path          → repository (a domain has no "/")
+//	contains "."           → domain
+//	otherwise              → package (the default)
 func Type(input string) string {
-	if isURL(input) {
+	if urlScheme.MatchString(input) {
 		return TypeURL
+	}
+	if scpRepo.MatchString(input) {
+		return TypeRepository
 	}
 	if isWallet(input) {
 		return TypeWallet
@@ -64,15 +76,20 @@ func Type(input string) string {
 	if strings.Contains(input, ":") || hasRegistryPrefix(input) {
 		return TypeDocker
 	}
+	if isHostPath(input) {
+		return TypeRepository
+	}
 	if strings.Contains(input, ".") {
 		return TypeDomain
 	}
 	return TypePackage
 }
 
-func isURL(input string) bool {
-	lower := strings.ToLower(input)
-	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
+// isHostPath reports whether input is a dotted host followed by a path, such
+// as github.com/owner/repo.
+func isHostPath(input string) bool {
+	host, path, ok := strings.Cut(input, "/")
+	return ok && path != "" && strings.Contains(host, ".")
 }
 
 func isWallet(input string) bool {

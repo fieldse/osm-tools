@@ -94,7 +94,9 @@ func checkEcosystem(flag string) (string, error) {
 
 // resolveCheckType picks the lookup type: --type wins, then -e forces a
 // package, then inference. Unsupported asset types and a package lookup with
-// no ecosystem are usage errors.
+// no ecosystem are usage errors. URLs and wallets are rejected even under an
+// explicit --type; a repository-shaped name is not, so --type docker still
+// reaches an untagged image on a private registry.
 func resolveCheckType(identifier, typeFlag, ecosystem string) (string, error) {
 	var kind string
 	switch {
@@ -113,7 +115,8 @@ func resolveCheckType(identifier, typeFlag, ecosystem string) (string, error) {
 	}
 
 	if kind != infer.TypePackage {
-		if asset := infer.Type(identifier); infer.IsUnsupportedAsset(asset) {
+		asset := infer.Type(identifier)
+		if infer.IsUnsupportedAsset(asset) && (typeFlag == "" || asset != infer.TypeRepository) {
 			return "", unsupportedAsset(asset)
 		}
 	}
@@ -124,7 +127,8 @@ func resolveCheckType(identifier, typeFlag, ecosystem string) (string, error) {
 }
 
 func unsupportedAsset(kind string) error {
-	return osmerr.Usagef("%s lookups are not supported; osm check handles packages, domains, IPs and container images", kind)
+	return osmerr.Usagef("%s lookups are not supported; osm check handles packages, domains, IPs and container images "+
+		"(pass -e <ecosystem> for a package with this name, or --type docker for an image)", kind)
 }
 
 // checkWithMavenFallback runs q and returns the result, its verdict and an

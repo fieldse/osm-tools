@@ -97,6 +97,13 @@ func TestResolveCheckType(t *testing.T) {
 		{"url rejected", "https://example.com/x", "", "", "", true},
 		{"url rejected as domain", "https://example.com/x", "domain", "", "", true},
 		{"wallet type rejected", "x", "wallet", "", "", true},
+		{"repo path rejected", "github.com/gobank-modules/web3-integration", "", "", "", true},
+		{"scp repo rejected", "git@github.com:owner/repo.git", "", "", "", true},
+		{"ssh url rejected", "ssh://git@github.com/o/r", "", "", "", true},
+		{"ftp url rejected", "ftp://evil.com/x", "", "", "", true},
+		{"repo path with ecosystem is a package", "github.com/gobank-modules/web3-integration", "", "go", infer.TypePackage, false},
+		{"untagged private image with --type docker", "registry.example.com/team/image", "docker", "", infer.TypeDocker, false},
+		{"tagged private image inferred", "registry.example.com/team/image:1.0", "", "", infer.TypeDocker, false},
 	}
 
 	for _, tt := range tests {

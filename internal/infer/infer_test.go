@@ -22,6 +22,18 @@ func TestType(t *testing.T) {
 		{"bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", TypeWallet},
 		{"0x1234", TypePackage},
 		{"aquasec/trivy:0.69.5", TypeDocker},
+		{"nginx@sha256:0123abcd", TypeDocker},
+		{"registry.example.com:5000/team/image", TypeDocker},
+		{"registry.example.com/team/image:1.0", TypeDocker},
+		{"ssh://git@github.com/o/r", TypeURL},
+		{"git+https://github.com/o/r", TypeURL},
+		{"ftp://evil.com/x", TypeURL},
+		{"git@github.com:owner/repo.git", TypeRepository},
+		{"github.com/gobank-modules/web3-integration", TypeRepository},
+		{"gitlab.com/owner/repo", TypeRepository},
+		{"example.com/payload", TypeRepository},
+		{"evil.com/", TypeDomain},
+		{"aquasec/trivy", TypePackage},
 	}
 
 	for _, tt := range tests {
