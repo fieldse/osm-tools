@@ -7,12 +7,14 @@ import (
 )
 
 func TestIsExactVersion(t *testing.T) {
-	for _, v := range []string{"1.2.3", "v1.2.3", "1.2.3-beta.1", "1.0-SNAPSHOT", "1.0rc1", "2"} {
+	for _, v := range []string{"1.2.3", "v1.2.3", "1.2.3-beta.1", "1.0-SNAPSHOT", "1.0rc1", "2",
+		"1.0.post1", "2.0.0.dev1", "5.3.2.RELEASE", "5.4.0.Final", "1.0.0.beta1", "1.0.0.pre", "1!2.0"} {
 		if !IsExactVersion(v) {
 			t.Errorf("IsExactVersion(%q) = false, want true", v)
 		}
 	}
-	for _, v := range []string{"", "^1.2.3", "~1.2.3", ">=1.0.0", "1.x", "1.2.X", "*", "latest", "1.2.3 - 2.0.0", "^1 || ^2", "workspace:*"} {
+	for _, v := range []string{"", "^1.2.3", "~1.2.3", ">=1.0.0", "1.x", "1.2.X", "*", "latest", "1.2.3 - 2.0.0", "^1 || ^2", "workspace:*",
+		"1.x.3", "1.0.x", "1.*", "1.0.*", "!2.0", "1!", "v"} {
 		if IsExactVersion(v) {
 			t.Errorf("IsExactVersion(%q) = true, want false", v)
 		}
@@ -32,6 +34,7 @@ func TestOf(t *testing.T) {
 		{"listed versions, none sent", listed, "", false, Review},
 		{"listed versions, range sent", listed, "^1.14.0", false, Review},
 		{"listed versions, exact sent", listed, "1.14.1", false, Malicious},
+		{"listed versions, dotted qualifier sent", listed, "5.4.0.Final", false, Malicious},
 		{"all versions", all, "", false, Malicious},
 		{"blank version_info", client.CheckResult{Malicious: true}, "", false, Malicious},
 		{"warning", client.CheckResult{Warning: "known malicious versions"}, "9.9.9", false, Review},

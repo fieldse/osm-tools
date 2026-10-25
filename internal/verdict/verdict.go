@@ -20,8 +20,9 @@ const (
 )
 
 // exactVersion matches a single pinned version such as 1.2.3, v1.2.3,
-// 1.2.3-beta.1 or 1.0rc1, and rejects ranges, wildcards and tags.
-var exactVersion = regexp.MustCompile(`^[vV]?\d+(\.\d+)*([-+_]?[0-9A-Za-z][0-9A-Za-z.+_-]*)?$`)
+// 1.2.3-beta.1, 1.0rc1, 1.0.post1, 5.4.0.Final or the PEP 440 epoch form
+// 1!2.0, and rejects ranges, wildcards and tags.
+var exactVersion = regexp.MustCompile(`^(\d+!)?[vV]?\d+(\.\d+)*([-+_.]?[0-9A-Za-z][0-9A-Za-z.+_-]*)?$`)
 
 // IsExactVersion reports whether v names one version rather than a range.
 func IsExactVersion(v string) bool {
