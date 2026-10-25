@@ -15,20 +15,21 @@ func TestParsePackageJSON(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			// Ranges carry no exact version, so only lodash keeps one (R3).
 			name: "dependencies and devDependencies merged and sorted",
 			path: "testdata/pkg_basic.json",
 			want: []Package{
-				{Name: "eslint", Version: "^9.0.0", Ecosystem: ecosystem.NPM},
-				{Name: "express", Version: "^4.18.2", Ecosystem: ecosystem.NPM},
+				{Name: "eslint", Version: "", Ecosystem: ecosystem.NPM},
+				{Name: "express", Version: "", Ecosystem: ecosystem.NPM},
 				{Name: "lodash", Version: "4.17.21", Ecosystem: ecosystem.NPM},
-				{Name: "typescript", Version: "~5.4.0", Ecosystem: ecosystem.NPM},
+				{Name: "typescript", Version: "", Ecosystem: ecosystem.NPM},
 			},
 		},
 		{
 			name: "missing devDependencies",
 			path: "testdata/pkg_no_dev.json",
 			want: []Package{
-				{Name: "react", Version: "^18.2.0", Ecosystem: ecosystem.NPM},
+				{Name: "react", Version: "", Ecosystem: ecosystem.NPM},
 			},
 		},
 		{

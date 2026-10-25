@@ -2,9 +2,8 @@ package parser
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
-	"os"
-	"sort"
 	"strings"
 
 	"github.com/fieldse/osm-tools/internal/ecosystem"
@@ -21,14 +20,13 @@ var nonExactSpecifiers = []string{">=", "<=", "~=", "!=", "===", ">", "<"}
 // parseRequirements reads a pip requirements.txt file and returns its direct
 // dependencies. Only file-read errors are returned; malformed lines are skipped.
 func parseRequirements(path string) ([]Package, error) {
-	f, err := os.Open(path)
+	data, err := readManifest(path)
 	if err != nil {
 		return nil, fmt.Errorf("open requirements file %q: %w", path, err)
 	}
-	defer f.Close()
 
 	var pkgs []Package
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(bytes.NewReader(data))
 	for sc.Scan() {
 		if pkg, ok := parseRequirementLine(sc.Text()); ok {
 			pkgs = append(pkgs, pkg)
@@ -38,7 +36,7 @@ func parseRequirements(path string) ([]Package, error) {
 		return nil, fmt.Errorf("read requirements file %q: %w", path, err)
 	}
 
-	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
+	sortPackages(pkgs)
 	return pkgs, nil
 }
 
