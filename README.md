@@ -87,7 +87,8 @@ Repositories, URLs and wallet addresses are not supported.
 | pypi | the registry's exact spelling (`tns-py`) | `TNS-PY`, `tns_py` |
 | maven | `groupId:artifactId` | (see Maven below) |
 | go | full module path; versions with `v` (`v0.1.0`) | `0.1.0` |
-| nuget, vscode | exact case (`Zendesk.OAuth`) | `zendesk.oauth` |
+| nuget | exact case (`Zendesk.OAuth`) | `zendesk.oauth` |
+| vscode | `publisher.extension`, exact case (`smiletime.pandatask`) | `SmileTime.PandaTask` |
 
 **Maven:** write the name as `groupId:artifactId`. OSM stores some Maven records under the artifactId alone, so `osm` also checks that. A match found that way shows as `REVIEW`: check the groupId before trusting it.
 
