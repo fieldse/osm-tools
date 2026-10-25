@@ -110,7 +110,7 @@ Supported manifests:
 - `requirements.txt`
 - `poetry.lock`
 
-Sweep checks the packages your project lists itself, not the packages those depend on. `yarn.lock` needs its `package.json` in the same folder.
+Sweep checks your direct dependencies, not transitive dependencies. `yarn.lock` needs its `package.json` in the same folder.
 
 Use a lockfile when you can. `package.json` usually gives version ranges like `^1.14.0`, so sweep can't tell which version you have; those rows show `REVIEW` if OSM lists bad versions of the package.
 
