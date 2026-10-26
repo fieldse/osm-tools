@@ -1,14 +1,15 @@
-Summary: Add `osm submit` — file a malicious-package report to OpenSourceMalware.com
+Summary: Make osm match how the OSM API really works, and scan pnpm and yarn lockfiles
 
-* **Report to the community:** adds the first command that sends data out to OSM, letting anyone file a threat report from the command line instead of only looking things up
-* **Safety before sending:** you always see exactly what will be sent and have to approve it first — and a non-interactive run refuses rather than sending anything blind
-* **Defuses live threats automatically:** malware links and addresses in the write-up are neutralized before sending so nobody clicks them by accident, while the sources you cited are left intact
+* **Fewer missed hits:** Lookups are now sent in the exact form OSM expects, so real malware no longer slips through as "clean" because of a wrong ecosystem name, a version range or a Maven naming quirk
+* **A middle verdict:** Results are now malicious, needs review, or clean, and a CI gate fails on "needs review" too, rather than treating partial matches as safe
+* **More projects covered:** Dependency scans now read pnpm and yarn lockfiles, and the token setup asks before overwriting a saved token
 
 Changes:
-* (feat) **submit command:** adds `osm submit` with three ways to compose a report — a template file, a JSON file, or guided prompts — all sharing one validate → defang → preview → confirm → send pipeline
-* (feat) **report core:** new self-contained package that parses each input format, checks the required fields, and does the link-defusing, all independently testable
-* (client) **submit endpoint:** adds the call to OSM's `POST /submit-threat-report`, mapping our field names to the service's and turning each documented rejection into a clear message
-* (security) **IOC defanging:** neutralizes live URLs and IPs in the report body; hardened after an adversarial pass to also catch links touching punctuation and credentialed URLs, and to stop mangling clock times
-* (test) **test-first coverage:** the whole feature was built tests-first, with extra regression tests locking in the security fixes; full suite green under the race detector
-* (docs) **API path correction:** fixes the internal API guide — the real submit path is `/submit-threat-report`, verified against the official docs
-* (fix) **no network before confirm:** a non-interactive run without approval now refuses before making any request, honoring the "nothing sent until you approve" promise
+* (fix) **package lookups:** the ecosystem flag always means a package lookup, is checked against the 12 supported ecosystems, and repos, URLs and wallets are rejected up front
+* (feat) **review verdict:** one shared rule decides malicious, review or clean, and output now lists the affected versions and the OSM page link
+* (fix) **maven fallback:** a miss on the full group and artifact name retries with the artifact alone, and any hit found that way is marked for review
+* (feat) **pnpm and yarn lockfiles:** sweep reads pnpm v6 and v9 and yarn v1 and berry, with size limits on what it will parse
+* (fix) **sweep accuracy:** version ranges are no longer sent as versions, optional dependencies are checked, npm aliases resolve, and old cache entries are discarded
+* (fix) **rate limits:** per-minute limits are waited out and retried up to 3 times, while the daily limit stops the run with a clear error
+* (feat) **safer token setup:** config asks before replacing a saved token, Ctrl-C leaves the terminal working, and show prints masked tokens
+* (docs) **readme rewrite:** explains what osm does and doesn't catch, lists every ecosystem with its naming rules, and records both dependency decisions
