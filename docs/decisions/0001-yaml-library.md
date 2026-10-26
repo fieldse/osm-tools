@@ -1,8 +1,8 @@
 ---
-status: PROPOSED (needs the user's yes before go.mod changes)
+status: ACCEPTED (approved by the maintainer, 2026-10-25)
 date: 2026-10-25
-deciders: dependency-auditor; user approval pending
-plan: docs/plans/2026-10-25-api-conformance.md (R12, work-breakdown step "Dependency audit")
+deciders: dependency-auditor; user
+requirement: R12 (pnpm and yarn lockfile parsers)
 ---
 
 # 0001: YAML library for pnpm-lock.yaml and yarn berry yarn.lock
