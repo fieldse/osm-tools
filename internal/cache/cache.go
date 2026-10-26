@@ -27,6 +27,18 @@ const (
 	fileName = "cache.json"
 )
 
+// schemaVersion identifies the cache file layout and the CheckResult fields it
+// holds. Bump it when the verdict starts reading a field that older entries
+// lack, so those entries are discarded instead of read as CLEAN.
+const schemaVersion = 2
+
+// fileFormat is the on-disk shape. Files without the current schema are
+// treated as empty; older binaries fail to decode this shape and start empty.
+type fileFormat struct {
+	Schema  int              `json:"schema"`
+	Entries map[string]entry `json:"entries"`
+}
+
 // entry is a stored result with the time it was written.
 type entry struct {
 	Result   client.CheckResult `json:"result"`
@@ -65,8 +77,8 @@ func NewWithPath(path string) *Cache {
 }
 
 // Load reads the cache file into memory. A missing file is not an error (the
-// cache starts empty). A corrupt file is tolerated the same way — it is logged
-// by the caller if desired, never fatal — so a bad cache can't break a sweep.
+// cache starts empty). A corrupt file, or one written with another schema
+// version, is tolerated the same way so a bad cache can't break a sweep.
 func (c *Cache) Load() error {
 	data, err := os.ReadFile(c.path)
 	if err != nil {
@@ -76,14 +88,13 @@ func (c *Cache) Load() error {
 		return fmt.Errorf("reading cache %s: %w", c.path, err)
 	}
 
-	var stored map[string]entry
-	if err := json.Unmarshal(data, &stored); err != nil {
-		// Treat a corrupt cache as empty rather than failing the command.
+	var stored fileFormat
+	if err := json.Unmarshal(data, &stored); err != nil || stored.Schema != schemaVersion || stored.Entries == nil {
 		return nil
 	}
 
 	c.mu.Lock()
-	c.entries = stored
+	c.entries = stored.Entries
 	c.mu.Unlock()
 	return nil
 }
@@ -119,7 +130,7 @@ func (c *Cache) Flush() error {
 		c.mu.RUnlock()
 		return nil
 	}
-	data, err := json.MarshalIndent(c.entries, "", "  ")
+	data, err := json.MarshalIndent(fileFormat{Schema: schemaVersion, Entries: c.entries}, "", "  ")
 	c.mu.RUnlock()
 	if err != nil {
 		return fmt.Errorf("encoding cache: %w", err)

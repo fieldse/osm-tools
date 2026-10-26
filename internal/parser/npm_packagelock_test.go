@@ -19,11 +19,12 @@ func TestParsePackageLock(t *testing.T) {
 			name: "v3 returns only direct deps with resolved versions",
 			file: "lock_v3.json",
 			// accepts/mime-types are transitive and excluded; express/lodash/jest
-			// resolve from node_modules; leftpad falls back to spec. Sorted.
+			// resolve from node_modules; leftpad falls back to its spec, a range,
+			// so it has no version. Sorted.
 			want: []Package{
 				{Name: "express", Version: "4.18.2", Ecosystem: ecosystem.NPM},
 				{Name: "jest", Version: "29.7.0", Ecosystem: ecosystem.NPM},
-				{Name: "leftpad", Version: "^1.0.0", Ecosystem: ecosystem.NPM},
+				{Name: "leftpad", Version: "", Ecosystem: ecosystem.NPM},
 				{Name: "lodash", Version: "4.17.21", Ecosystem: ecosystem.NPM},
 			},
 		},

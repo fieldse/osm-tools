@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
@@ -160,5 +161,56 @@ func TestDecoratorConcurrent(t *testing.T) {
 		if _, ok := c.Get("package:npm:pkg:" + v); !ok {
 			t.Errorf("key for version %q not cached", v)
 		}
+	}
+}
+
+// TestLoadDiscardsOtherSchema: an entry written before the schema field existed
+// lacks warning/version fields, so reading it would turn a REVIEW into CLEAN.
+func TestLoadDiscardsOtherSchema(t *testing.T) {
+	stored := time.Now().UTC().Format(time.RFC3339Nano)
+	tests := map[string]string{
+		"pre-schema map": `{"package:npm:axios:1.99.0":{"result":{"malicious":false},"stored_at":"` + stored + `"}}`,
+		"older schema":   `{"schema":1,"entries":{"package:npm:axios:1.99.0":{"result":{"malicious":false},"stored_at":"` + stored + `"}}}`,
+	}
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "cache.json")
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			c := NewWithPath(path)
+			if err := c.Load(); err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if _, ok := c.Get("package:npm:axios:1.99.0"); ok {
+				t.Error("entry from another schema was served; want a miss")
+			}
+		})
+	}
+}
+
+// TestFlushWritesSchema checks the file carries the current schema and reloads.
+func TestFlushWritesSchema(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cache.json")
+	c1 := NewWithPath(path)
+	c1.Set("k", client.CheckResult{Warning: "has known malicious versions"})
+	if err := c1.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f fileFormat
+	if err := json.Unmarshal(data, &f); err != nil || f.Schema != schemaVersion {
+		t.Fatalf("flushed file schema = %d (err %v), want %d", f.Schema, err, schemaVersion)
+	}
+
+	c2 := NewWithPath(path)
+	if err := c2.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := c2.Get("k"); !ok || got.Warning == "" {
+		t.Errorf("reloaded entry = %+v (ok=%v), want the warning kept", got, ok)
 	}
 }

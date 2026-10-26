@@ -20,3 +20,8 @@ go.work.sum
 
 # Environment
 .env
+
+# Working docs
+HANDOFF*.md
+docs/plans/
+GIT_PR_SUMMARY.md

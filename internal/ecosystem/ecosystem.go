@@ -1,7 +1,7 @@
 // Package ecosystem defines the package ecosystems OSM recognizes.
 package ecosystem
 
-// Recognized ecosystems.
+// Recognized ecosystems. Values are the API's case-sensitive ecosystem names.
 const (
 	NPM       = "npm"
 	PyPI      = "pypi"
@@ -11,10 +11,14 @@ const (
 	Packagist = "packagist"
 	Crates    = "crates"
 	Go        = "go"
+	VSCode    = "vscode"
+	OpenVSX   = "openvsx"
+	Skills    = "skills"
+	Brew      = "brew"
 )
 
 // all is the canonical ordered list of recognized ecosystems.
-var all = []string{NPM, PyPI, Maven, NuGet, RubyGems, Packagist, Crates, Go}
+var all = []string{NPM, PyPI, Maven, NuGet, RubyGems, Packagist, Crates, Go, VSCode, OpenVSX, Skills, Brew}
 
 // All returns every recognized ecosystem.
 func All() []string {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -173,5 +174,53 @@ func TestSweep_CacheAvoidsSecondCall(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Errorf("API called %d times, want 1 (second sweep should hit cache)", calls)
+	}
+}
+
+// TestSweep_OptionalDependencyTriggersGate: a malicious package listed only
+// under optionalDependencies is queried and trips --fail-on-any.
+func TestSweep_OptionalDependencyTriggersGate(t *testing.T) {
+	const pkgJSON = `{"dependencies":{"axios":"1.14.1"},"optionalDependencies":{"evil-pkg":"1.0.0"}}`
+	tests := map[string]map[string]string{
+		"package.json": {"package.json": pkgJSON},
+		"package-lock.json": {"package-lock.json": `{"lockfileVersion":3,"packages":{
+			"":{"dependencies":{"axios":"1.14.1"},"optionalDependencies":{"evil-pkg":"1.0.0"}},
+			"node_modules/axios":{"version":"1.14.1"},
+			"node_modules/evil-pkg":{"version":"1.0.0","optional":true}}}`},
+		"yarn.lock": {
+			"package.json": pkgJSON,
+			"yarn.lock":    "# yarn lockfile v1\n\naxios@1.14.1:\n  version \"1.14.1\"\n\nevil-pkg@1.0.0:\n  version \"1.0.0\"\n",
+		},
+	}
+	for manifest, files := range tests {
+		t.Run(manifest, func(t *testing.T) {
+			var seen sync.Map
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				name := r.URL.Query().Get("resource_identifier")
+				seen.Store(name, true)
+				if name == "evil-pkg" {
+					w.Write([]byte(`{"malicious":true,"details":{"severity_level":"high"}}`))
+					return
+				}
+				w.Write([]byte(`{"malicious":false}`))
+			}))
+			defer srv.Close()
+
+			dir := t.TempDir()
+			for name, body := range files {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, err := runSweepCmd(t, sweepDeps(t, srv), "-f", filepath.Join(dir, manifest), "--fail-on-any")
+
+			if _, ok := seen.Load("evil-pkg"); !ok {
+				t.Error("sweep never queried the optional dependency")
+			}
+			var gate *osmerr.GateTriggered
+			if !errors.As(err, &gate) {
+				t.Fatalf("want GateTriggered, got %v", err)
+			}
+		})
 	}
 }

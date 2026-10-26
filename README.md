@@ -2,6 +2,15 @@
 
 CLI for the [OpenSourceMalware.com](https://opensourcemalware.com) API — check packages, domains, IPs, and Docker images against a community-verified malicious package database.
 
+## What it does and doesn't do
+
+`osm` looks up names in OSM's database of confirmed malware: packages that were malicious from the start, or real packages whose maintainer account was taken over.
+
+- **It finds** packages, domains, IPs and container images that OSM has verified as malicious.
+- **It does not find** ordinary security bugs (CVEs). Use a vulnerability scanner such as Grype or OSV-Scanner for those.
+- **It does not analyse code.** It only matches names, and versions where OSM lists them.
+- **`CLEAN` means "no record found",** not "safe". A misspelled name also comes back `CLEAN`.
+
 ---
 
 ## Install
@@ -20,6 +29,17 @@ export OSM_API_KEY=osm_...              # current shell only
 osm check evil.com --token osm_...      # one-off
 ```
 
+Check your setup with `osm config --show`. Tokens show only their first five characters.
+
+```
+$ osm config --show
+- config file:   ~/.osm/config.json
+- saved token:   osm_a*****
+- OSM_API_KEY:   not set
+```
+
+If `OSM_API_KEY` is set, it is shown masked the same way and overrides the saved token.
+
 ---
 
 ## Commands
@@ -35,12 +55,49 @@ osm check @scope/pkg -e npm           # scoped npm — include the full @scope/n
 osm check evil.com
 osm check 1.2.3.4
 osm check nginx:latest
-osm check express -T package -e npm   # explicit type override
+osm check aquasec/trivy -T docker     # untagged image
 ```
 
-**Types:** Inferred from the input — IPs, domains, and Docker images are detected automatically; anything else is treated as a package. Use `-T` to be explicit: `package`, `domain`, `ip`, `docker`. See [supported asset types](https://docs.opensourcemalware.com/asset-types).
+**Packages** need `-e` with the package's ecosystem: the registry it is published on. Type the name exactly as that registry does: case, `@scope/` and separators all matter.
 
-> **Package names must match the registry exactly.** A clean result means "not in the database," not "verified safe." A typo'd or unscoped name will silently appear clean.
+| `-e` value | Registry |
+|---|---|
+| `npm` | npm (JavaScript) |
+| `pypi` | PyPI (Python) |
+| `maven` | Maven Central (Java) |
+| `nuget` | NuGet (.NET) |
+| `rubygems` | RubyGems (Ruby) |
+| `packagist` | Packagist (PHP) |
+| `crates` | crates.io (Rust) |
+| `go` | Go modules |
+| `vscode` | VS Code Marketplace extensions |
+| `openvsx` | Open VSX extensions |
+| `skills` | AI agent skill registries |
+| `brew` | Homebrew |
+
+**Domains, IPs and images** need no flag; `osm` detects them. An image with no tag, such as `aquasec/trivy`, needs `-T docker`.
+
+Repositories, URLs and wallet addresses are not supported.
+
+**Name formats** that trip people up:
+
+| Ecosystem | Write it as | Won't match |
+|---|---|---|
+| npm | `@scope/name` | `scope/name` |
+| pypi | the registry's exact spelling (`tns-py`) | `TNS-PY`, `tns_py` |
+| maven | `groupId:artifactId` | (see Maven below) |
+| go | full module path; versions with `v` (`v0.1.0`) | `0.1.0` |
+| nuget | exact case (`Zendesk.OAuth`) | `zendesk.oauth` |
+| vscode | `publisher.extension`, exact case (`smiletime.pandatask`) | `SmileTime.PandaTask` |
+
+**Maven:** write the name as `groupId:artifactId`. OSM stores some Maven records under the artifactId alone, so `osm` also checks that. A match found that way shows as `REVIEW`: check the groupId before trusting it.
+
+**Verdicts:**
+- `MALICIOUS`: a hit that covers every version, or a hit on the exact `--version` you passed.
+- `REVIEW`: a hit on specific versions when no exact version was given, a warning that the package has known malicious versions, or a Maven hit found only by its bare artifactId.
+- `CLEAN`: anything else, usually no record in the database.
+
+The output lists the affected versions and the OSM page URL when the API returns them. `check` exits 0 for all three verdicts.
 
 ### `osm sweep`
 
@@ -51,13 +108,25 @@ osm sweep -f package.json
 osm sweep -f requirements.txt
 osm sweep -f package-lock.json
 osm sweep -f poetry.lock
-osm sweep -f package.json --fail-on-any   # exit 3 on any hit
+osm sweep -f pnpm-lock.yaml
+osm sweep -f yarn.lock                    # needs package.json in the same directory
+osm sweep -f package.json --fail-on-any   # exit 3 on any MALICIOUS or REVIEW row
 osm sweep -f package.json -o json         # JSON output
 ```
 
-Supported manifests: `package.json`, `package-lock.json`, `requirements.txt`, `poetry.lock`. Direct dependencies only.
+Supported manifests:
+- `package.json`
+- `package-lock.json`
+- `pnpm-lock.yaml` (lockfile v6 and v9; monorepos check every project's direct deps)
+- `yarn.lock` (v1 and berry)
+- `requirements.txt`
+- `poetry.lock`
 
-Requests are paced at 30/min (half the API ceiling) — large manifests will take a moment.
+Sweep checks your direct dependencies, not transitive dependencies. `yarn.lock` needs its `package.json` in the same folder.
+
+Use a lockfile when you can. `package.json` usually gives version ranges like `^1.14.0`, so sweep can't tell which version you have; those rows show `REVIEW` if OSM lists bad versions of the package.
+
+Local and git dependencies are skipped. Results are cached for 24 hours.
 
 ### `osm latest`
 
@@ -69,7 +138,7 @@ osm latest -e npm
 osm latest -e npm,pypi,maven
 ```
 
-Supported ecosystems: `npm`, `pypi`, `maven`, `nuget`, `rubygems`, `packagist`, `crates`, `go` — [full list](https://docs.opensourcemalware.com/asset-types)
+`-e` takes the same values as `check` (see the table under [`osm check`](#osm-check)). An unknown value exits 2.
 
 ### `osm submit`
 
@@ -91,12 +160,14 @@ See the [submit guide](docs/submit.md) for copy-paste examples of each mode, def
 | Flag | Short | Commands | Description |
 |---|---|---|---|
 | `--token` | `-t` | all | API key |
-| `--ecosystem` | `-e` | `check`, `latest` | Package ecosystem (e.g. `npm`, `pypi`) |
+| `--show` | | `config` | Show the saved token (masked) and whether `OSM_API_KEY` overrides it |
+| `--ecosystem` | `-e` | `check`, `latest` | Package ecosystem (e.g. `npm`, `pypi`); on `check`, makes it a package lookup |
 | `--type` | `-T` | `check` | Asset type override (`package`, `domain`, `ip`, `docker`) |
 | `--version` | | `check` | Package version |
+| `--debug` | | `check` | Print the API request and response status to stderr |
 | `--file` | `-f` | `sweep` | Manifest file path |
 | `--output` | `-o` | `sweep` | Output format (`json`) |
-| `--fail-on-any` | | `sweep` | Exit 3 if any malicious hit |
+| `--fail-on-any` | | `sweep` | Exit 3 if any row is `MALICIOUS` or `REVIEW` |
 | `--interactive` | `-i` | `submit` | Compose the report through guided prompts |
 | `--from-json` | | `submit` | Read a structured JSON report (`-` = stdin) |
 | `--template` | | `submit` | Print the blank report template and exit |
@@ -104,6 +175,23 @@ See the [submit guide](docs/submit.md) for copy-paste examples of each mode, def
 | `--dry-run` | | `submit` | Run the local pipeline, stop before submit |
 | `--no-defang` | | `submit` | Send IOCs verbatim instead of neutralizing them |
 | `--yes` | `-y` | `submit` | Assume yes to prompts; required in non-TTY runs |
+
+### Rate limits
+
+The free tier allows 60 requests per minute and 2000 per day. `osm` paces itself at 30 requests per minute, so a large manifest takes a while to sweep.
+
+If the API returns a per-minute 429, `osm` waits and retries, up to 3 times. The wait is the `Retry-After` time capped at 60 seconds, or 2 seconds if the header is missing. A daily-quota 429 is not retried, and the command exits 1.
+
+### Exit codes
+
+`check`, `sweep` and `latest` use these codes. `submit` has its own; see the [submit guide](docs/submit.md#exit-codes).
+
+| Code | Meaning |
+|---|---|
+| 0 | Success, whatever the verdict |
+| 1 | Operational error: network, auth, API error, unreadable or malformed manifest |
+| 2 | Usage error: bad flag, unknown ecosystem or manifest, unsupported asset type |
+| 3 | `sweep --fail-on-any` found a `MALICIOUS` or `REVIEW` row |
 
 ---
 

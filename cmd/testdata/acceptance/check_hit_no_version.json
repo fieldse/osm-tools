@@ -1,0 +1,1 @@
+{"malicious":true,"version":null,"osm_url":"https://opensourcemalware.com/npm/axios","threat_count":1,"details":{"threat_id":"a5b0e2c4-7f3d-4b1a-9c55-2d8e61f0a9b7","severity_level":"critical","description":"Hijacked release installs a remote access trojan","version_info":"1.14.1, 0.30.4"}}

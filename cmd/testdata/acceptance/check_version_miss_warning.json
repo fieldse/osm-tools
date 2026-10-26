@@ -1,0 +1,1 @@
+{"malicious":false,"version":"^1.14.0","warning":"This package has known malicious versions","known_malicious_versions":["1.14.1, 0.30.4"],"osm_url":"https://opensourcemalware.com/npm/axios","details":null}

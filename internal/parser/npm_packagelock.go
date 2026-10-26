@@ -3,8 +3,6 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"sort"
 
 	"github.com/fieldse/osm-tools/internal/ecosystem"
 )
@@ -18,21 +16,22 @@ type lockfile struct {
 }
 
 // lockEntry is one entry in either the "packages" or "dependencies" map. The
-// root "" entry in v2/v3 uses Dependencies/DevDependencies to name direct deps;
+// root "" entry in v2/v3 uses its dependency maps to name direct deps;
 // node_modules/<name> entries carry the resolved Version.
 type lockEntry struct {
-	Version         string            `json:"version"`
-	Dependencies    map[string]string `json:"dependencies"`
-	DevDependencies map[string]string `json:"devDependencies"`
+	Version              string            `json:"version"`
+	Dependencies         map[string]string `json:"dependencies"`
+	DevDependencies      map[string]string `json:"devDependencies"`
+	OptionalDependencies map[string]string `json:"optionalDependencies"`
 }
 
 // parsePackageLock reads an npm package-lock.json and returns only its direct
-// dependencies. In v2/v3, it extracts direct deps from packages[""].dependencies
-// and .devDependencies, then resolves each to its concrete version from
-// packages["node_modules/<name>"].version (or falls back to the spec string).
-// In v1, it takes the top-level "dependencies" map.
+// dependencies. In v2/v3, it extracts direct deps from packages[""].dependencies,
+// .devDependencies and .optionalDependencies, then resolves each to its concrete version from
+// packages["node_modules/<name>"].version, falling back to the spec under the
+// same rules as package.json. In v1, it takes the top-level "dependencies" map.
 func parsePackageLock(path string) ([]Package, error) {
-	data, err := os.ReadFile(path)
+	data, err := readManifest(path)
 	if err != nil {
 		return nil, fmt.Errorf("read package-lock.json %q: %w", path, err)
 	}
@@ -44,37 +43,33 @@ func parsePackageLock(path string) ([]Package, error) {
 
 	var pkgs []Package
 	if lf.Packages != nil {
-		// v2/v3: extract direct deps from root "" entry.
 		root := lf.Packages[""]
-		direct := make(map[string]string)
-		for name, spec := range root.Dependencies {
-			direct[name] = spec
+		direct := packageJSON{
+			Dependencies:         root.Dependencies,
+			DevDependencies:      root.DevDependencies,
+			OptionalDependencies: root.OptionalDependencies,
 		}
-		for name, spec := range root.DevDependencies {
-			direct[name] = spec
-		}
-		for name, spec := range direct {
-			version := spec
-			if installed, ok := lf.Packages["node_modules/"+name]; ok && installed.Version != "" {
-				version = installed.Version
+		for key, spec := range direct.directSpecs() {
+			name, version, ok := npmSpec(key, spec)
+			if !ok {
+				continue
 			}
-			pkgs = append(pkgs, Package{
-				Name:      name,
-				Version:   version,
-				Ecosystem: ecosystem.NPM,
-			})
+			if installed := npmExactVersion(lf.Packages["node_modules/"+key].Version); installed != "" {
+				version = installed
+			}
+			pkgs = append(pkgs, Package{Name: name, Version: version, Ecosystem: ecosystem.NPM})
 		}
 	} else {
-		// v1: take top-level dependencies.
-		for name, entry := range lf.Dependencies {
-			pkgs = append(pkgs, Package{
-				Name:      name,
-				Version:   entry.Version,
-				Ecosystem: ecosystem.NPM,
-			})
+		// v1: an aliased or git dep carries its spec in the version field.
+		for key, entry := range lf.Dependencies {
+			name, version, ok := npmSpec(key, entry.Version)
+			if !ok {
+				continue
+			}
+			pkgs = append(pkgs, Package{Name: name, Version: version, Ecosystem: ecosystem.NPM})
 		}
 	}
 
-	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
+	sortPackages(pkgs)
 	return pkgs, nil
 }

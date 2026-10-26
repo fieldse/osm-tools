@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/BurntSushi/toml"
 
@@ -24,8 +23,12 @@ type poetryPackage struct {
 // parsePoetryLock reads a poetry.lock (TOML) and returns every [[package]]
 // entry as a Package, with versions used verbatim. The result is sorted by Name.
 func parsePoetryLock(path string) ([]Package, error) {
+	data, err := readManifest(path)
+	if err != nil {
+		return nil, fmt.Errorf("read poetry.lock %q: %w", path, err)
+	}
 	var lock poetryLock
-	if _, err := toml.DecodeFile(path, &lock); err != nil {
+	if _, err := toml.Decode(string(data), &lock); err != nil {
 		return nil, fmt.Errorf("parse poetry.lock %q: %w", path, err)
 	}
 
@@ -38,6 +41,6 @@ func parsePoetryLock(path string) ([]Package, error) {
 		})
 	}
 
-	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
+	sortPackages(pkgs)
 	return pkgs, nil
 }

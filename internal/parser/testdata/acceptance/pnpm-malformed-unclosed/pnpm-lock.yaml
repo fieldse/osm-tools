@@ -1,0 +1,10 @@
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      axios: {specifier: ^1.14.0, version: 1.14.1
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21

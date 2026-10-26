@@ -1,0 +1,26 @@
+{
+  "name": "r3-ranges-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "axios": "^1.14.0",
+    "tilde-dep": "~1.2.3",
+    "gte-dep": ">=1.0.0",
+    "x-range-dep": "1.x",
+    "x-patch-dep": "1.2.x",
+    "star-dep": "*",
+    "latest-dep": "latest",
+    "hyphen-dep": "1.2.3 - 2.0.0",
+    "or-dep": "^1 || ^2",
+    "lt-dep": "<2.0.0",
+    "and-dep": ">1.0.0 <2.0.0",
+    "workspace-dep": "workspace:*",
+    "file-dep": "file:../x",
+    "git-dep": "git+https://github.com/example/git-dep.git#v1.2.3",
+    "tarball-dep": "https://registry.example.com/tarball-dep/-/tarball-dep-1.2.3.tgz"
+  },
+  "devDependencies": {
+    "dev-caret-dep": "^3.2.0",
+    "dev-tilde-dep": "~5.6.0"
+  }
+}

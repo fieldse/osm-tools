@@ -16,6 +16,24 @@ func TestType(t *testing.T) {
 		{"evil.com", TypeDomain},
 		{"express", TypePackage},
 		{"left-pad", TypePackage},
+		{"https://github.com/owner/repo", TypeURL},
+		{"HTTP://example.com/payload", TypeURL},
+		{"0x1234567890abcdef1234567890abcdef12345678", TypeWallet},
+		{"bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", TypeWallet},
+		{"0x1234", TypePackage},
+		{"aquasec/trivy:0.69.5", TypeDocker},
+		{"nginx@sha256:0123abcd", TypeDocker},
+		{"registry.example.com:5000/team/image", TypeDocker},
+		{"registry.example.com/team/image:1.0", TypeDocker},
+		{"ssh://git@github.com/o/r", TypeURL},
+		{"git+https://github.com/o/r", TypeURL},
+		{"ftp://evil.com/x", TypeURL},
+		{"git@github.com:owner/repo.git", TypeRepository},
+		{"github.com/gobank-modules/web3-integration", TypeRepository},
+		{"gitlab.com/owner/repo", TypeRepository},
+		{"example.com/payload", TypeRepository},
+		{"evil.com/", TypeDomain},
+		{"aquasec/trivy", TypePackage},
 	}
 
 	for _, tt := range tests {
@@ -36,6 +54,32 @@ func TestIsSupported(t *testing.T) {
 	for _, bad := range []string{"", "wallet", "repo", "Package"} {
 		if IsSupported(bad) {
 			t.Errorf("IsSupported(%q) = true, want false", bad)
+		}
+	}
+}
+
+func TestIsUnsupportedAsset(t *testing.T) {
+	for _, bad := range []string{TypeRepository, TypeURL, TypeWallet} {
+		if !IsUnsupportedAsset(bad) {
+			t.Errorf("IsUnsupportedAsset(%q) = false, want true", bad)
+		}
+	}
+	for _, ok := range []string{TypePackage, TypeDomain, TypeIP, TypeDocker, ""} {
+		if IsUnsupportedAsset(ok) {
+			t.Errorf("IsUnsupportedAsset(%q) = true, want false", ok)
+		}
+	}
+}
+
+func TestNormalizeDomain(t *testing.T) {
+	tests := map[string]string{
+		"Evil.COM":  "evil.com",
+		"evil.com.": "evil.com",
+		"evil.com":  "evil.com",
+	}
+	for in, want := range tests {
+		if got := NormalizeDomain(in); got != want {
+			t.Errorf("NormalizeDomain(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

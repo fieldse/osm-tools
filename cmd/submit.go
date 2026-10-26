@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"github.com/fieldse/osm-tools/internal/osmerr"
 	"github.com/fieldse/osm-tools/internal/output"
 	"github.com/fieldse/osm-tools/internal/report"
+	"github.com/fieldse/osm-tools/internal/termsafe"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -72,10 +72,6 @@ func (o *submitOptions) lines(r io.Reader) *lineReader {
 	}
 	return o.stdin
 }
-
-// errInterrupted marks a Ctrl-C at a prompt. Nothing has been sent at that
-// point, so runSubmit reports it exactly like declining the confirm.
-var errInterrupted = errors.New("interrupted")
 
 // lineReader delivers stdin lines over a channel so prompt loops can select on
 // ctx.Done(). This indirection is what makes Ctrl-C work at a prompt: main
@@ -243,9 +239,13 @@ func runSubmit(cmd *cobra.Command, deps *appDeps, opts *submitOptions) error {
 			Type:       req.ReportType,
 			Identifier: req.ResourceIdentifier,
 		}); derr == nil && res.Malicious {
+			threatID := res.Details.ThreatID
+			if threatID == "" {
+				threatID = res.Details.ID
+			}
 			fmt.Fprintf(cmd.ErrOrStderr(),
 				"note: %s is already flagged malicious (threat %s)\n",
-				req.ResourceIdentifier, res.Details.ID)
+				termsafe.String(req.ResourceIdentifier), termsafe.String(threatID))
 		}
 	}
 
@@ -281,18 +281,6 @@ func runSubmit(cmd *cobra.Command, deps *appDeps, opts *submitOptions) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "status: %s\n", res.Status)
 	}
 	return nil
-}
-
-// abortOrErr turns a Ctrl-C at a prompt into the same clean outcome as
-// declining the confirm — nothing was sent, so it is not a failure. Any other
-// error passes through. The leading newline lands the message clear of the
-// half-finished prompt line the terminal echoed "^C" onto.
-func abortOrErr(cmd *cobra.Command, err error) error {
-	if errors.Is(err, errInterrupted) {
-		fmt.Fprintln(cmd.ErrOrStderr(), "\naborted")
-		return nil
-	}
-	return err
 }
 
 // submitError translates a submit-time API error into a readable message while
