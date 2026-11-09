@@ -8,9 +8,9 @@ import (
 	"io"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/fieldse/osm-tools/internal/client"
+	"github.com/fieldse/osm-tools/internal/config"
 	"github.com/fieldse/osm-tools/internal/ecosystem"
 	"github.com/fieldse/osm-tools/internal/osmerr"
 	"github.com/fieldse/osm-tools/internal/output"
@@ -25,8 +25,8 @@ import (
 // term.IsTerminal check on stdin"; tests set it to exercise the non-TTY guard
 // and the interactive transcript without a real TTY.
 type submitOptions struct {
-	file        string // positional FILE (template mode)
-	fromJSON    string // --from-json (FILE or "-")
+	file        string // positional REPORT.md (template mode)
+	fromJSON    string // --from-json (FILE.json or "-")
 	interactive bool   // -i / --interactive
 	noDefang    bool   // --no-defang
 	dryRun      bool   // --dry-run
@@ -34,23 +34,8 @@ type submitOptions struct {
 	emitJSON    bool   // --emit-json (terminal)
 	template    bool   // --template (terminal)
 
-	isTerminal func() bool      // seam; nil → real check
-	now        func() time.Time // clock seam; nil → time.Now
-	stdin      *lineReader      // shared line source; lazily built by lines()
-}
-
-// dateLayout is the YYYY-MM-DD form the wizard suggests and accepts for the
-// first_seen/last_seen dates — a full RFC 3339 timestamp is overkill for a
-// "when did you notice this" field.
-const dateLayout = "2006-01-02"
-
-// today returns the current date as YYYY-MM-DD (UTC), via the clock seam.
-func (o *submitOptions) today() string {
-	n := time.Now
-	if o.now != nil {
-		n = o.now
-	}
-	return n().UTC().Format(dateLayout)
+	isTerminal func() bool // seam; nil → real check
+	stdin      *lineReader // shared line source; lazily built by lines()
 }
 
 // stdinIsTerminal resolves the TTY seam, defaulting to the real check.
@@ -132,6 +117,16 @@ func cmdContext(cmd *cobra.Command) context.Context {
 	return context.Background()
 }
 
+// submitLong is the Long help for `osm submit`, naming the three input modes.
+const submitLong = `File a threat report to OpenSourceMalware.com. Every run previews the
+report and asks for confirmation before sending.
+
+Input modes (give exactly one):
+  REPORT.md               the markdown template; osm submit --template prints a blank one
+  --from-json FILE.json   a JSON report keyed by API field names (see examples/threat-report.json)
+  --from-json -           the same JSON report, read from stdin
+  -i, --interactive       a guided wizard; needs a terminal`
+
 // newSubmitCmd builds `osm submit` — file a threat report to OSM. This is the
 // tool's first write command, so the pipeline is preview → explicit confirm →
 // submit, with --dry-run/--emit-json/--template as no-network escape hatches.
@@ -139,8 +134,9 @@ func newSubmitCmd(deps *appDeps) *cobra.Command {
 	opts := &submitOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "submit [FILE]",
+		Use:   "submit [REPORT.md]",
 		Short: "File a threat report to OpenSourceMalware.com",
+		Long:  submitLong,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
@@ -152,11 +148,11 @@ func newSubmitCmd(deps *appDeps) *cobra.Command {
 
 	f := cmd.Flags()
 	f.BoolVarP(&opts.interactive, "interactive", "i", false, "compose the report through guided prompts")
-	f.StringVar(&opts.fromJSON, "from-json", "", "read a structured JSON report (FILE or - for stdin)")
+	f.StringVar(&opts.fromJSON, "from-json", "", "read the report from `FILE.json` (- reads it from stdin)")
 	f.BoolVar(&opts.noDefang, "no-defang", false, "skip IOC defanging (on by default)")
 	f.BoolVar(&opts.dryRun, "dry-run", false, "run the local pipeline and stop before dedupe/submit (zero network)")
 	f.BoolVarP(&opts.yes, "yes", "y", false, "assume yes to every prompt; required in non-TTY/CI runs")
-	f.BoolVar(&opts.emitJSON, "emit-json", false, "print the assembled report as JSON and exit (never submits)")
+	f.BoolVar(&opts.emitJSON, "emit-json", false, "print the report as JSON and exit. Does NOT submit; nothing is sent")
 	f.BoolVar(&opts.template, "template", false, "print the blank report template and exit")
 
 	return cmd
@@ -174,6 +170,10 @@ func runSubmit(cmd *cobra.Command, deps *appDeps, opts *submitOptions) error {
 		return nil
 	}
 
+	if opts.emitJSON {
+		fmt.Fprintln(cmd.ErrOrStderr(), "--emit-json: the report will be printed as JSON and NOT submitted.")
+	}
+
 	// Release the stdin reader goroutine once the run is over.
 	defer func() {
 		if opts.stdin != nil {
@@ -182,10 +182,11 @@ func runSubmit(cmd *cobra.Command, deps *appDeps, opts *submitOptions) error {
 	}()
 
 	// (2) Collect the report from the selected input mode.
-	r, err := collectReport(cmd, opts)
+	r, err := collectReport(cmd, deps, opts)
 	if err != nil {
 		return abortOrErr(cmd, err)
 	}
+	r.ContactEmail = config.ResolveContactEmail(r.ContactEmail, deps.contactEmail)
 
 	// (3) Validate: hard errors block; warnings go to stderr.
 	warnings, err := report.Validate(r)
@@ -325,24 +326,26 @@ func parseExistingThreatID(body string) string {
 // collectReport dispatches to the selected input mode (template file, JSON, or
 // interactive) and returns the assembled report. It enforces strict mode
 // mutual-exclusivity and the bare-invocation usage error.
-func collectReport(cmd *cobra.Command, opts *submitOptions) (report.Report, error) {
-	selectors := 0
+func collectReport(cmd *cobra.Command, deps *appDeps, opts *submitOptions) (report.Report, error) {
+	var given []string
 	if opts.file != "" {
-		selectors++
+		given = append(given, fmt.Sprintf("REPORT.md %q", opts.file))
 	}
 	if opts.fromJSON != "" {
-		selectors++
+		given = append(given, fmt.Sprintf("--from-json %q", opts.fromJSON))
 	}
 	if opts.interactive {
-		selectors++
+		given = append(given, "-i")
 	}
 
 	switch {
-	case selectors == 0:
+	case len(given) == 0:
 		return report.Report{}, osmerr.Usagef(
-			"no input given; choose one: a template FILE, --from-json FILE|-, or --interactive")
-	case selectors > 1:
-		return report.Report{}, osmerr.Usagef("choose one input mode: a template FILE, --from-json, or --interactive")
+			"no input given; choose one: REPORT.md, --from-json FILE.json|-, or -i")
+	case len(given) > 1:
+		return report.Report{}, osmerr.Usagef(
+			"conflicting inputs: %s; give only one of REPORT.md, --from-json or -i",
+			strings.Join(given, ", "))
 	}
 
 	switch {
@@ -367,7 +370,7 @@ func collectReport(cmd *cobra.Command, opts *submitOptions) (report.Report, erro
 		return report.ParseJSON(data)
 
 	default: // interactive
-		return collectInteractive(cmd, opts)
+		return collectInteractive(cmd, deps, opts)
 	}
 }
 
@@ -385,8 +388,9 @@ type fieldPrompt struct {
 // header renders the prompt across two or three lines so a long enum never
 // overflows the terminal: the name and required/optional sit on the first line,
 // the options or example on an indented second line, and the answer is typed
-// after a "> " marker. The default value (if any) is printed after that marker
-// by ask, so pressing Enter accepts what is already shown on the input line.
+// after a "> " marker. A default (if any) is shown before the marker as
+// "(default: x) > "; it is applied when the answer is blank and never typed into
+// the input line.
 func (p fieldPrompt) header() string {
 	kind := "optional"
 	if p.required {
@@ -395,6 +399,9 @@ func (p fieldPrompt) header() string {
 	s := fmt.Sprintf("%s (%s)\n", p.name, kind)
 	if p.hint != "" {
 		s += "  " + p.hint + "\n"
+	}
+	if p.def != "" {
+		s += "(default: " + p.def + ") "
 	}
 	return s + "> "
 }
@@ -415,7 +422,7 @@ type blockPrompt struct {
 // or EOF. Required fields and the report_type enum are re-prompted on a bad
 // answer so a typo costs one line rather than the whole wizard (Validate would
 // otherwise reject it at the very end, after every other field was typed).
-func collectInteractive(cmd *cobra.Command, opts *submitOptions) (report.Report, error) {
+func collectInteractive(cmd *cobra.Command, deps *appDeps, opts *submitOptions) (report.Report, error) {
 	if !opts.stdinIsTerminal() {
 		return report.Report{}, osmerr.Usagef(
 			"--interactive needs a TTY; pipe a JSON report with --from-json - instead")
@@ -426,7 +433,7 @@ func collectInteractive(cmd *cobra.Command, opts *submitOptions) (report.Report,
 	lr := opts.lines(cmd.InOrStdin())
 
 	fmt.Fprint(out, "Compose a threat report. Fields marked (required) must be answered;\n"+
-		"press Enter to skip an (optional) field or to accept a [default]. Ctrl-C aborts.\n\n")
+		"press Enter to skip an (optional) field or to accept its default. Ctrl-C aborts.\n\n")
 
 	// abort is a sticky error (the errWriter idiom): once a prompt is
 	// interrupted, every later ask/askBlock returns immediately without
@@ -441,11 +448,7 @@ func collectInteractive(cmd *cobra.Command, opts *submitOptions) (report.Report,
 			return ""
 		}
 		for {
-			// Print the default on the input line ("> package") so Enter accepts
-			// what's shown. It's a visual suggestion, not injected into stdin: a
-			// blank answer maps back to p.def below, and typing a different value
-			// overrides it.
-			fmt.Fprint(out, p.header(), p.def)
+			fmt.Fprint(out, p.header())
 			l, ok, err := lr.next(ctx)
 			if err != nil {
 				abort = err
@@ -523,7 +526,7 @@ func collectInteractive(cmd *cobra.Command, opts *submitOptions) (report.Report,
 	r.ResourceID = ask(fieldPrompt{
 		name:     "resource_identifier",
 		required: true,
-		hint:     "what you're reporting, e.g. @acme/utils",
+		hint:     resourceHint(r.Type),
 	})
 	r.PackageName = ask(fieldPrompt{
 		name: "package_name",
@@ -532,15 +535,16 @@ func collectInteractive(cmd *cobra.Command, opts *submitOptions) (report.Report,
 	r.Registry = ask(fieldPrompt{
 		name: "registry",
 		hint: strings.Join(ecosystem.All(), "|"),
-		def:  registryDefault(r.Type),
 	})
 	r.Publisher = ask(fieldPrompt{
 		name: "publisher",
-		hint: "account that published it, e.g. baduser",
+		hint: "the attacker's account that published it (not you)\n" +
+			"  e.g. npm/PyPI username, GitHub user or org: baduser",
 	})
 	r.ContactEmail = ask(fieldPrompt{
 		name: "contact_email",
 		hint: "so OSM can follow up, e.g. you@example.com",
+		def:  deps.contactEmail,
 	})
 	r.SeverityLevel = ask(fieldPrompt{
 		name: "severity_level",
@@ -553,7 +557,6 @@ func collectInteractive(cmd *cobra.Command, opts *submitOptions) (report.Report,
 	r.FirstSeen = ask(fieldPrompt{
 		name: "first_seen",
 		hint: "YYYY-MM-DD",
-		def:  opts.today(),
 	})
 	r.LastSeen = ask(fieldPrompt{
 		name: "last_seen",
@@ -565,7 +568,8 @@ func collectInteractive(cmd *cobra.Command, opts *submitOptions) (report.Report,
 	})
 	r.Tags = splitCommaList(ask(fieldPrompt{
 		name: "tags",
-		hint: "comma-separated, e.g. postinstall, exfil",
+		hint: "comma-separated, lowercase kebab-case, e.g. contagious-interview, infostealer, postinstall\n" +
+			"  tag list: https://docs.opensourcemalware.com/tags.md",
 	}))
 
 	r.Description = askBlock(blockPrompt{
@@ -617,14 +621,29 @@ func collectInteractive(cmd *cobra.Command, opts *submitOptions) (report.Report,
 	return r, nil
 }
 
-// registryDefault returns the registry to pre-fill. It only defaults for package
-// reports — a domain or wallet report has no registry, so suggesting npm there
-// would invite a wrong answer rather than save a keystroke.
-func registryDefault(reportType string) string {
-	if reportType == report.TypePackage {
-		return ecosystem.NPM
+// resourceHint returns the resource_identifier format for a report type, per the
+// OSM submit-threat-report docs.
+func resourceHint(reportType string) string {
+	switch reportType {
+	case report.TypePackage:
+		return "name as it appears in the registry, e.g.\n" +
+			"    npm:    @scope/package-name  or  package-name\n" +
+			"    pypi:   requests-toolkit\n" +
+			"    skills: https://www.clawhub.ai/user/skill-name"
+	case report.TypeRepository:
+		return "host and path, no https://, e.g. github.com/owner/repo"
+	case report.TypeURL:
+		return "full URL, e.g. https://example.com/payload"
+	case report.TypeDomain:
+		return "bare domain, e.g. evil-c2-server.com"
+	case report.TypeIP:
+		return "IP address, e.g. 192.0.2.1"
+	case report.TypeWallet:
+		return "wallet address, e.g. 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+	case report.TypeContainer, report.TypeDocker:
+		return "image reference, e.g. docker.io/owner/image:latest"
 	}
-	return ""
+	return "what you're reporting"
 }
 
 // splitCommaList splits a comma-separated string, trimming each element and

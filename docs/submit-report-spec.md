@@ -43,15 +43,15 @@ Working command name: **`osm submit`** (matches the existing one-word verbs `che
 ## Command shape
 
 ```
-osm submit [FILE] [flags]
+osm submit [REPORT.md] [flags]
 ```
 
 Exactly one **input mode** per invocation; strictly mutually exclusive (see B1 below):
 
 | Mode | Selector | Input |
 | --- | --- | --- |
-| **Template file** | positional `FILE` (default) | plaintext/markdown file following the report template |
-| **JSON** | `--from-json FILE` (`-` = stdin) | a structured report object |
+| **Template file** | positional `REPORT.md` | markdown file following the report template (`--template` prints a blank one) |
+| **JSON** | `--from-json FILE.json` (`-` = stdin) | a structured report object |
 | **Interactive** | `-i` / `--interactive` | guided prompts, no file needed |
 
 Flags:
@@ -59,7 +59,7 @@ Flags:
 | Flag | Effect |
 | --- | --- |
 | `-i`, `--interactive` | compose through guided prompts |
-| `--from-json FILE` | read a structured JSON report (`-` = stdin) |
+| `--from-json FILE.json` | read the report from a JSON file (`-` reads stdin) |
 | `--no-defang` | skip IOC defanging (on by default) |
 | `--dry-run` | run the **strictly local** pipeline (collect, validate, defang, preview) — **skips dedupe and submit; zero network** |
 | `-y`, `--yes` | assume "yes" to every y/n prompt (final confirm, defang, per-optional-field nudges). Required in non-TTY/CI runs |
@@ -75,9 +75,10 @@ Flags:
   assembled report, then exits **without submitting**. Combining either with an input mode is
   allowed (they act on/ignore it), but combining `--template` with `--emit-json` is a usage error.
 - **The three input modes are strictly mutually exclusive.** Passing more than one input selector
-  (`-i` + `--from-json`, positional `FILE` + `--from-json`, `FILE` + `-i`, etc.) is a usage error.
+  (`-i` + `--from-json`, positional `REPORT.md` + `--from-json`, `REPORT.md` + `-i`, etc.) is a usage
+  error whose message names each conflicting input.
   Pre-filling interactive from a partial file/JSON is **deferred to v2** (see Deferred).
-- **Bare `osm submit`** (no FILE, no `-i`, no `--from-json`) → usage error listing the three modes.
+- **Bare `osm submit`** (no `REPORT.md`, no `-i`, no `--from-json`) → usage error listing the three modes.
 - **`--from-json -` and `-i` both want stdin** — since they're mutually exclusive this can't collide.
 
 ## Pipeline (shared by all three modes)
@@ -144,7 +145,7 @@ structure. Missing optional sections surface as validation warnings.
 - Severity: high           # severity_level (critical|high|medium|low)
 - First seen: 2026-06-01T00:00:00Z   # first_seen (ISO 8601)
 - Last seen: 2026-06-20T00:00:00Z    # last_seen  (ISO 8601)
-- Tags: postinstall, exfil # tags (array)
+- Tags: postinstall, infostealer # tags (array)
 - OSV: <advisory url>      # osv_advisory_url (never defanged)
 
 ## Description
@@ -181,32 +182,41 @@ second evidence URL", "which versions?") — never content/style critique.
 **Every prompt must be answerable without the API docs open.** Each prompt spans two or three lines
 so a long enum never overflows the terminal: the field name and `(required)`/`(optional)` sit on the
 first line; the accepted vocabulary or a short example goes on an indented second line; the answer is
-typed after a `> ` marker, with any **default pre-shown on that input line** so pressing Enter
-accepts what's displayed (or skips an optional field):
+typed after a `> ` marker. A default is shown before the marker as `(default: x) > ` and is never
+typed into the input line, so pressing Enter accepts it (or skips an optional field):
 
 ```
 report_type (required)
   package|container|repository|url|domain|ip|wallet
-> package
+(default: package) > 
 resource_identifier (required)
-  what you're reporting, e.g. @acme/utils
+  name as it appears in the registry, e.g.
+    npm:    @scope/package-name  or  package-name
+    pypi:   requests-toolkit
+    skills: https://www.clawhub.ai/user/skill-name
+> @acme/utils
+package_name (optional)
+  only if it differs from the resource, e.g. utils
 > 
 registry (optional)
-  npm|pypi|maven|nuget|rubygems|packagist|crates|go
+  npm|pypi|maven|nuget|rubygems|packagist|crates|go|vscode|openvsx|skills|brew
 > npm
+...
 first_seen (optional)
   YYYY-MM-DD
 > 2026-07-16
 ```
 
-- **Defaults:** `report_type` → `package`, `registry` → `npm` (the common case), `first_seen` →
-  today's date in `YYYY-MM-DD`. Dates use the date-only `YYYY-MM-DD` form (still valid ISO 8601; the
+- **Defaults:** `report_type` → `package`, shown before the input marker as
+  `(default: package) >`. `registry` and `first_seen` have no default. `contact_email` defaults to the
+  address saved with `osm config --contact-email`, if any. Dates use the date-only `YYYY-MM-DD` form (still valid ISO 8601; the
   validator accepts both that and a full RFC 3339 timestamp). Enum vocabularies are rendered from the
   canonical sources (`report.IsValidType`, `ecosystem.All()`) so a new ecosystem shows up in the
   prompt without a second edit.
-- **Report-type-aware:** the type is the first prompt and later prompts adapt to it. The `npm`
-  registry default applies **only to package reports** — a domain or wallet report has no registry,
-  so pre-filling one there would invite a wrong answer rather than save a keystroke.
+- **Report-type-aware:** the type is the first prompt and later prompts adapt to it. The
+  `resource_identifier` hint follows the type (`resourceHint`): a registry name for `package`,
+  `github.com/owner/repo` with no `https://` for `repository`, a bare domain for `domain`, and an
+  image reference for `container`.
 - **Inline re-prompt** on a blank required field or an invalid `report_type`, rather than deferring
   to the final `Validate` — a typo should cost one line, not the whole wizard. Warn-only fields
   (`registry`, `severity_level`, dates) still fall through to `Validate`'s warnings, matching the

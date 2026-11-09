@@ -33,12 +33,15 @@ Check your setup with `osm config --show`. Tokens show only their first five cha
 
 ```
 $ osm config --show
-- config file:   ~/.osm/config.json
-- saved token:   osm_a*****
-- OSM_API_KEY:   not set
+- config file:     ~/.osm/config.json
+- saved token:     osm_a*****
+- contact email:   none
+- OSM_API_KEY:     not set
 ```
 
 If `OSM_API_KEY` is set, it is shown masked the same way and overrides the saved token.
+
+To save a default contact email for `osm submit`, run `osm config --contact-email you@example.com`. Use `--contact-email ""` to clear it.
 
 ---
 
@@ -142,11 +145,18 @@ osm latest -e npm,pypi,maven
 
 ### `osm submit`
 
-Files a threat report to OpenSourceMalware.com. Compose it from a template file, a JSON file, or an interactive wizard; every run previews the report and waits for confirmation before sending.
+Files a threat report to OpenSourceMalware.com. Every run previews the report and waits for confirmation before sending.
+
+Usage is `osm submit [REPORT.md] [flags]`. Give the report in exactly one of three ways. Combining them exits 2.
+
+- `REPORT.md`: the markdown template that `osm submit --template` prints.
+- `--from-json FILE.json`: a JSON report keyed by API field names, as in [`examples/threat-report.json`](examples/threat-report.json). `--from-json -` reads it from stdin.
+- `-i`: the interactive wizard. It needs a terminal.
 
 ```sh
-osm submit report.md                          # template file
-osm submit --from-json report.json            # structured JSON
+osm submit report.md                          # markdown template
+osm submit --from-json report.json            # JSON report
+cat report.json | osm submit --from-json -    # JSON report on stdin
 osm submit -i                                 # interactive wizard
 osm submit report.md --dry-run                # rehearse — no network
 osm submit report.md --emit-json              # print assembled JSON, no network
@@ -160,7 +170,8 @@ See the [submit guide](docs/submit.md) for copy-paste examples of each mode, def
 | Flag | Short | Commands | Description |
 |---|---|---|---|
 | `--token` | `-t` | all | API key |
-| `--show` | | `config` | Show the saved token (masked) and whether `OSM_API_KEY` overrides it |
+| `--show` | | `config` | Show the saved token (masked), the contact email and whether `OSM_API_KEY` overrides the token |
+| `--contact-email` | | `config` | Save the default `contact_email` for `osm submit` (`""` clears it) |
 | `--ecosystem` | `-e` | `check`, `latest` | Package ecosystem (e.g. `npm`, `pypi`); on `check`, makes it a package lookup |
 | `--type` | `-T` | `check` | Asset type override (`package`, `domain`, `ip`, `docker`) |
 | `--version` | | `check` | Package version |
@@ -169,9 +180,9 @@ See the [submit guide](docs/submit.md) for copy-paste examples of each mode, def
 | `--output` | `-o` | `sweep` | Output format (`json`) |
 | `--fail-on-any` | | `sweep` | Exit 3 if any row is `MALICIOUS` or `REVIEW` |
 | `--interactive` | `-i` | `submit` | Compose the report through guided prompts |
-| `--from-json` | | `submit` | Read a structured JSON report (`-` = stdin) |
+| `--from-json FILE.json` | | `submit` | Read the report from a JSON file (`-` reads stdin) |
 | `--template` | | `submit` | Print the blank report template and exit |
-| `--emit-json` | | `submit` | Print the assembled report as JSON and exit |
+| `--emit-json` | | `submit` | Print the report as JSON and exit. Does not submit; nothing is sent |
 | `--dry-run` | | `submit` | Run the local pipeline, stop before submit |
 | `--no-defang` | | `submit` | Send IOCs verbatim instead of neutralizing them |
 | `--yes` | `-y` | `submit` | Assume yes to prompts; required in non-TTY runs |

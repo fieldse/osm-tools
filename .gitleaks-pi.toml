@@ -1,0 +1,14 @@
+# PII scan exceptions for this repo, read by the global pi-check.sh hook. Decision: docs/decisions/0003-pi-allowlist.md.
+# @pi-global resolves to the global PI rules in the hook wrapper, so every PI rule still runs.
+[extend]
+path = "@pi-global"
+
+[[allowlists]]
+description = "The tool's documented config and cache directory"
+targetRules = ["pi-tilde-private-dir"]
+regexes = ['''~/\.osm\b''']
+
+[[allowlists]]
+description = "Sample threat reports quote malware IOC paths"
+targetRules = ["pi-tilde-private-dir"]
+paths = ['''^examples/''']

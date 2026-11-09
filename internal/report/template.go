@@ -11,14 +11,14 @@ const templateText = `# <title / one-line summary>
 - Resource: <resource identifier>
 - Package name: <optional>
 - Registry: <npm|pypi|...>
-- Publisher: <optional>
+- Publisher: <attacker's account that published it (not you), optional>
 - Contact: <email, optional>
 - Affected versions: <comma-separated, optional>
 - Severity: <critical|high|medium|low>
 - First seen: <ISO 8601, optional>
 - Last seen: <ISO 8601, optional>
 - OSV: <advisory url, optional>
-- Tags: <comma-separated, optional>
+- Tags: <comma-separated lowercase-kebab-case, optional>
 
 ## Description
 <threat_description — required>

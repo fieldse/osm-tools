@@ -85,8 +85,8 @@ func showOutput(t *testing.T, s *config.Store, envKey string) string {
 func assertValuesAligned(t *testing.T, got string) {
 	t.Helper()
 	lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
-	if len(lines) != 3 {
-		t.Fatalf("want 3 lines, got %d:\n%s", len(lines), got)
+	if len(lines) != 4 {
+		t.Fatalf("want 4 lines, got %d:\n%s", len(lines), got)
 	}
 	col := -1
 	for _, l := range lines {
@@ -115,7 +115,7 @@ func TestConfig_ShowMasksToken(t *testing.T) {
 	if strings.Contains(got, savedToken) {
 		t.Fatalf("full token printed:\n%s", got)
 	}
-	for _, want := range []string{"- config file:   ", "- saved token:   osm_s*****\n", "- OSM_API_KEY:   not set\n"} {
+	for _, want := range []string{"- config file:     ", "- saved token:     osm_s*****\n", "- contact email:   none\n", "- OSM_API_KEY:     not set\n"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
@@ -129,12 +129,108 @@ func TestConfig_ShowReportsEnvOverrideAndNoToken(t *testing.T) {
 	if strings.Contains(got, envKey) {
 		t.Fatalf("full OSM_API_KEY value printed:\n%s", got)
 	}
-	for _, want := range []string{"- saved token:   none\n", "- OSM_API_KEY:   osm_f***** (overrides the saved token)\n"} {
+	for _, want := range []string{"- saved token:     none\n", "- OSM_API_KEY:     osm_f***** (overrides the saved token)\n"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
 	}
 	assertValuesAligned(t, got)
+}
+
+func TestConfig_ShowPrintsContactEmail(t *testing.T) {
+	s := storeWith(t, savedToken)
+	if err := s.Save(config.Config{Token: savedToken, ContactEmail: "you@example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	got := showOutput(t, s, "")
+	if !strings.Contains(got, "- contact email:   you@example.com\n") {
+		t.Errorf("missing contact email in:\n%s", got)
+	}
+	assertValuesAligned(t, got)
+}
+
+// contactEmailRun runs `osm config --contact-email value` against store s.
+func contactEmailRun(t *testing.T, s *config.Store, value string) (string, error) {
+	t.Helper()
+	return configRun(t, context.Background(),
+		configOptions{contactEmail: value, contactEmailSet: true, store: s, getenv: noEnv, isTerminal: func() bool { return false }},
+		strings.NewReader(""))
+}
+
+func TestConfig_ContactEmailSavesAndKeepsToken(t *testing.T) {
+	s := storeWith(t, savedToken)
+	out, err := contactEmailRun(t, s, " you@example.com ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "Contact email saved to ") {
+		t.Errorf("missing confirmation in %q", out)
+	}
+	c, err := s.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ContactEmail != "you@example.com" || c.Token != savedToken {
+		t.Errorf("config = %+v, want the email saved and the token kept", c)
+	}
+}
+
+func TestConfig_ContactEmailEmptyClears(t *testing.T) {
+	s := storeWith(t, savedToken)
+	if _, err := contactEmailRun(t, s, "you@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := contactEmailRun(t, s, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "Contact email cleared") {
+		t.Errorf("missing cleared message in %q", out)
+	}
+	c, _ := s.Load()
+	if c.ContactEmail != "" || c.Token != savedToken {
+		t.Errorf("config = %+v, want the email cleared and the token kept", c)
+	}
+}
+
+func TestConfig_ContactEmailRejectsInvalid(t *testing.T) {
+	for _, bad := range []string{"not-an-email", "Name <you@example.com>", "a@b@c"} {
+		s := storeWith(t, "")
+		_, err := contactEmailRun(t, s, bad)
+		var ue *osmerr.UsageError
+		if !errors.As(err, &ue) {
+			t.Errorf("%q: want UsageError, got %v", bad, err)
+		}
+		if c, _ := s.Load(); c.ContactEmail != "" {
+			t.Errorf("%q: invalid email was saved", bad)
+		}
+	}
+}
+
+func TestConfig_ContactEmailWithShowIsUsageError(t *testing.T) {
+	_, err := configRun(t, context.Background(),
+		configOptions{show: true, contactEmail: "you@example.com", contactEmailSet: true, store: storeWith(t, ""), getenv: noEnv},
+		strings.NewReader(""))
+	var ue *osmerr.UsageError
+	if !errors.As(err, &ue) {
+		t.Fatalf("want UsageError, got %v", err)
+	}
+}
+
+func TestConfig_TokenSaveKeepsContactEmail(t *testing.T) {
+	s := config.NewWithDir(t.TempDir())
+	if err := s.Save(config.Config{ContactEmail: "you@example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := configRun(t, context.Background(),
+		configOptions{store: s, getenv: noEnv, isTerminal: tty, readSecret: secret("osm_new00000000000000wxyz")},
+		strings.NewReader(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := s.Load(); c.ContactEmail != "you@example.com" || c.Token == "" {
+		t.Errorf("config = %+v, want token saved and email kept", c)
+	}
 }
 
 func TestConfig_ShowMasksBothTokens(t *testing.T) {
@@ -153,7 +249,7 @@ func TestConfig_ShowShortEnvKey(t *testing.T) {
 	if strings.Contains(got, "osm_short") {
 		t.Fatalf("short OSM_API_KEY value printed:\n%s", got)
 	}
-	if !strings.Contains(got, "- OSM_API_KEY:   set (too short to preview) (overrides the saved token)\n") {
+	if !strings.Contains(got, "- OSM_API_KEY:     set (too short to preview) (overrides the saved token)\n") {
 		t.Errorf("unexpected output:\n%s", got)
 	}
 	assertValuesAligned(t, got)

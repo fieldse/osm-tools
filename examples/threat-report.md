@@ -11,7 +11,7 @@
 - First seen: 2026-07-14
 - Last seen: 2026-07-16
 - OSV: https://osv.dev/vulnerability/GHSA-xxxx-xxxx-xxxx
-- Tags: postinstall, exfil, credential-theft
+- Tags: postinstall, infostealer, credential-theft
 
 ## Description
 The 3.3.1 release adds a postinstall script absent from the published GitHub

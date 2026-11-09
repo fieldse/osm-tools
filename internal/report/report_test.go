@@ -140,7 +140,7 @@ func TestTemplate_IsParseable(t *testing.T) {
 	// The blank template's placeholder hints (<...>) must parse as empty, not
 	// as literal "<...>" text.
 	if strings.HasPrefix(r.Type, "<") || strings.HasPrefix(r.ResourceID, "<") ||
-		strings.HasPrefix(r.Description, "<") {
+		strings.HasPrefix(r.Description, "<") || r.Publisher != "" {
 		t.Errorf("placeholder hints leaked into fields: %+v", r)
 	}
 	for _, e := range r.EvidenceRefs {

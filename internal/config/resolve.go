@@ -20,3 +20,12 @@ func ResolveToken(flag, env, fileToken string) (string, error) {
 	}
 	return "", osmerr.ErrNoToken
 }
+
+// ResolveContactEmail returns the contact email for a report: the report's own
+// value if it has one, otherwise the configured default (possibly empty).
+func ResolveContactEmail(reportEmail, fileEmail string) string {
+	if e := strings.TrimSpace(reportEmail); e != "" {
+		return e
+	}
+	return strings.TrimSpace(fileEmail)
+}

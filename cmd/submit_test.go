@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/fieldse/osm-tools/internal/client"
+	"github.com/fieldse/osm-tools/internal/exitcode"
 	"github.com/fieldse/osm-tools/internal/osmerr"
 	"github.com/fieldse/osm-tools/internal/report"
 )
@@ -297,7 +298,7 @@ curl http://evil.com
 		cmd.SetOut(&bytes.Buffer{})
 		cmd.SetErr(&bytes.Buffer{})
 		cmd.SetIn(strings.NewReader(stdin))
-		r, err := collectReport(cmd, opts)
+		r, err := collectReport(cmd, deps, opts)
 		if err != nil {
 			t.Fatalf("collectReport: %v", err)
 		}
@@ -477,7 +478,7 @@ func runInteractive(t *testing.T, transcript string) (report.Report, string) {
 	cmd.SetErr(&errBuf)
 	cmd.SetIn(strings.NewReader(transcript))
 
-	r, err := collectInteractive(cmd, &submitOptions{
+	r, err := collectInteractive(cmd, deps, &submitOptions{
 		interactive: true,
 		isTerminal:  func() bool { return true },
 	})
@@ -487,16 +488,16 @@ func runInteractive(t *testing.T, transcript string) (report.Report, string) {
 	return r, errBuf.String()
 }
 
-// TestSubmit_InteractiveDefaults asserts a bare Enter on report_type and
-// registry takes the package/npm defaults rather than submitting empty fields.
+// TestSubmit_InteractiveDefaults asserts a bare Enter on report_type takes the
+// package default rather than submitting an empty field.
 func TestSubmit_InteractiveDefaults(t *testing.T) {
-	// report_type and registry left blank; everything else answered or skipped.
+	// report_type left blank; everything else answered or skipped.
 	transcript := interactiveTranscript(t,
 		[]string{
 			"",                             // report_type   -> default package
 			"@acme/utils",                  // resource_identifier
 			"",                             // package_name
-			"",                             // registry      -> default npm
+			"",                             // registry
 			"", "", "", "", "", "", "", "", // publisher..tags
 		},
 		"steals npmrc", "http://evil.com")
@@ -505,30 +506,6 @@ func TestSubmit_InteractiveDefaults(t *testing.T) {
 
 	if r.Type != report.TypePackage {
 		t.Errorf("report_type = %q, want the %q default on blank input", r.Type, report.TypePackage)
-	}
-	if r.Registry != "npm" {
-		t.Errorf("registry = %q, want the \"npm\" default on blank input", r.Registry)
-	}
-}
-
-// TestSubmit_InteractiveRegistryDefaultOnlyForPackages asserts a non-package
-// report does not get npm pre-filled — a domain report has no registry, so a
-// default there would invite a wrong answer rather than save a keystroke.
-func TestSubmit_InteractiveRegistryDefaultOnlyForPackages(t *testing.T) {
-	transcript := interactiveTranscript(t,
-		[]string{
-			"domain",                       // report_type
-			"evil.com",                     // resource_identifier
-			"",                             // package_name
-			"",                             // registry -> must stay empty
-			"", "", "", "", "", "", "", "", // publisher..tags
-		},
-		"hosts malware", "")
-
-	r, _ := runInteractive(t, transcript)
-
-	if r.Registry != "" {
-		t.Errorf("registry = %q, want empty for a domain report (npm default must not apply)", r.Registry)
 	}
 }
 
@@ -576,10 +553,13 @@ func TestSubmit_InteractivePromptsCarryHints(t *testing.T) {
 		"package|container|repository|url|domain|ip|wallet", // type vocabulary
 		"critical|high|medium|low",                          // severity vocabulary
 		"npm|pypi",                                          // registry vocabulary
-		"> package",                                         // default shown on the input line
-		"> npm",                                             // registry default on the input line
+		"(default: package) > ",                             // default shown before the marker
 		"YYYY-MM-DD",                                        // date format hint
 		"Example:",                                          // block examples
+		"publisher (optional)\n  the attacker's account that published it (not you)\n" +
+			"  e.g. npm/PyPI username, GitHub user or org: baduser\n> ", // publisher means the attacker
+		"tags (optional)\n  comma-separated, lowercase kebab-case, e.g. contagious-interview, infostealer, postinstall\n" +
+			"  tag list: https://docs.opensourcemalware.com/tags.md\n> ", // tags follow OSM's convention
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("prompt transcript missing %q:\n%s", want, out)
@@ -587,17 +567,80 @@ func TestSubmit_InteractivePromptsCarryHints(t *testing.T) {
 	}
 }
 
-// TestSubmit_InteractiveFirstSeenDefaultsToday asserts a blank first_seen takes
-// today's date in YYYY-MM-DD form, via the clock seam so the assertion is
-// deterministic.
-func TestSubmit_InteractiveFirstSeenDefaultsToday(t *testing.T) {
-	fixed := time.Date(2026, 7, 16, 9, 30, 0, 0, time.UTC)
+// TestResourceHint asserts each report type gets the resource_identifier format
+// from the OSM submit-threat docs.
+func TestResourceHint(t *testing.T) {
+	for _, tc := range []struct {
+		reportType string
+		want       []string
+	}{
+		{report.TypePackage, []string{"npm:    @scope/package-name", "pypi:   requests-toolkit", "skills: https://www.clawhub.ai/user/skill-name"}},
+		{report.TypeRepository, []string{"no https://", "github.com/owner/repo"}},
+		{report.TypeURL, []string{"https://example.com/payload"}},
+		{report.TypeDomain, []string{"bare domain", "evil-c2-server.com"}},
+		{report.TypeIP, []string{"192.0.2.1"}},
+		{report.TypeWallet, []string{"1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"}},
+		{report.TypeContainer, []string{"docker.io/owner/image:latest"}},
+		{report.TypeDocker, []string{"docker.io/owner/image:latest"}},
+		{"bogus", []string{"what you're reporting"}},
+	} {
+		t.Run(tc.reportType, func(t *testing.T) {
+			got := resourceHint(tc.reportType)
+			for _, w := range tc.want {
+				if !strings.Contains(got, w) {
+					t.Errorf("resourceHint(%q) = %q, missing %q", tc.reportType, got, w)
+				}
+			}
+			if tc.reportType == report.TypeRepository && strings.Contains(got, "https://github") {
+				t.Errorf("repository hint shows a protocol: %q", got)
+			}
+		})
+	}
+}
 
+// TestSubmit_InteractiveResourceHintFollowsType asserts the resource_identifier
+// prompt shows the hint for the report_type just answered.
+func TestSubmit_InteractiveResourceHintFollowsType(t *testing.T) {
+	for _, tc := range []struct {
+		reportType, resource string
+		want                 []string
+	}{
+		{"repository", "github.com/evil/repo", []string{
+			"resource_identifier (required)\n  host and path, no https://, e.g. github.com/owner/repo\n> ",
+		}},
+		{"package", "@acme/utils", []string{
+			"resource_identifier (required)\n  name as it appears in the registry, e.g.\n",
+			"    npm:    @scope/package-name  or  package-name\n",
+			"    pypi:   requests-toolkit\n",
+		}},
+	} {
+		t.Run(tc.reportType, func(t *testing.T) {
+			transcript := interactiveTranscript(t,
+				[]string{
+					tc.reportType, tc.resource, "", "",
+					"", "", "", "", "", "", "", "",
+				},
+				"steals npmrc", "")
+
+			_, out := runInteractive(t, transcript)
+
+			for _, w := range tc.want {
+				if !strings.Contains(out, w) {
+					t.Errorf("transcript missing %q:\n%s", w, out)
+				}
+			}
+		})
+	}
+}
+
+// TestSubmit_InteractiveDatesAndRegistryHaveNoDefault asserts blank first_seen,
+// last_seen and registry stay empty rather than taking a guessed value.
+func TestSubmit_InteractiveDatesAndRegistryHaveNoDefault(t *testing.T) {
 	transcript := interactiveTranscript(t,
 		[]string{
 			"package", "@acme/utils", "", "",
 			"", "", "", "", // publisher..version_info
-			"",     // first_seen -> today's default
+			"",     // first_seen
 			"",     // last_seen
 			"", "", // osv_advisory_url, tags
 		},
@@ -609,16 +652,18 @@ func TestSubmit_InteractiveFirstSeenDefaultsToday(t *testing.T) {
 	cmd.SetErr(&bytes.Buffer{})
 	cmd.SetIn(strings.NewReader(transcript))
 
-	r, err := collectInteractive(cmd, &submitOptions{
+	r, err := collectInteractive(cmd, deps, &submitOptions{
 		interactive: true,
 		isTerminal:  func() bool { return true },
-		now:         func() time.Time { return fixed },
 	})
 	if err != nil {
 		t.Fatalf("collectInteractive: %v", err)
 	}
-	if r.FirstSeen != "2026-07-16" {
-		t.Errorf("first_seen = %q, want today's date %q on blank input", r.FirstSeen, "2026-07-16")
+	if r.FirstSeen != "" {
+		t.Errorf("first_seen = %q, want empty (no default)", r.FirstSeen)
+	}
+	if r.Registry != "" {
+		t.Errorf("registry = %q, want empty (no default)", r.Registry)
 	}
 	if r.LastSeen != "" {
 		t.Errorf("last_seen = %q, want empty (no default)", r.LastSeen)
@@ -647,31 +692,148 @@ func TestSubmit_InteractiveStripsEvidenceBullets(t *testing.T) {
 	}
 }
 
-// TestSubmit_ConflictingModesError (T7) asserts FILE+--from-json, FILE+-i, and
-// -i+--from-json each return a UsageError.
+// TestSubmit_ConflictingModesError (T7) asserts every combination of two or
+// more input modes is a usage error (exit 2) that names each conflicting input
+// and sends nothing.
 func TestSubmit_ConflictingModesError(t *testing.T) {
-	deps := testDeps(httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
-
 	cases := []struct {
 		name string
-		opts *submitOptions
+		args []string
+		want []string
 	}{
-		{"file+json", &submitOptions{file: "x.md", fromJSON: "y.json"}},
-		{"file+interactive", &submitOptions{file: "x.md", interactive: true, isTerminal: func() bool { return true }}},
-		{"interactive+json", &submitOptions{interactive: true, fromJSON: "y.json", isTerminal: func() bool { return true }}},
+		{"file+json", []string{"x.md", "--from-json", "y.json"}, []string{`REPORT.md "x.md"`, `--from-json "y.json"`}},
+		{"file+json-stdin", []string{"x.md", "--from-json", "-"}, []string{`REPORT.md "x.md"`, `--from-json "-"`}},
+		{"file+interactive", []string{"x.md", "-i"}, []string{`REPORT.md "x.md"`, "-i"}},
+		{"interactive+json", []string{"-i", "--from-json", "y.json"}, []string{"-i", `--from-json "y.json"`}},
+		{"all three", []string{"x.md", "-i", "--from-json", "-"}, []string{`REPORT.md "x.md"`, `--from-json "-"`, "-i"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cmd := newSubmitCmd(deps)
+			rec := &recorder{}
+			srv := newRecordingServer(rec)
+			defer srv.Close()
+
+			cmd := newSubmitCmd(testDeps(srv))
 			cmd.SetOut(&bytes.Buffer{})
 			cmd.SetErr(&bytes.Buffer{})
 			cmd.SetIn(strings.NewReader(""))
-			_, err := collectReport(cmd, tc.opts)
+			cmd.SetArgs(tc.args)
+
+			err := cmd.Execute()
 			var usage *osmerr.UsageError
 			if !errors.As(err, &usage) {
 				t.Fatalf("want UsageError, got %v", err)
 			}
+			if code := exitcode.FromError(err); code != exitcode.Usage {
+				t.Errorf("exit code = %d, want %d", code, exitcode.Usage)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(err.Error(), w) {
+					t.Errorf("error %q does not name %q", err.Error(), w)
+				}
+			}
+			rec.mu.Lock()
+			defer rec.mu.Unlock()
+			if rec.posts != 0 || rec.gets != 0 {
+				t.Errorf("requests = %d POST, %d GET; want zero network", rec.posts, rec.gets)
+			}
 		})
+	}
+}
+
+// TestSubmit_EachSingleModeWorks asserts each input mode on its own assembles
+// the report, using --emit-json so nothing is sent.
+func TestSubmit_EachSingleModeWorks(t *testing.T) {
+	jsonDoc := `{` + jsonReportBase + `}`
+	transcript := interactiveTranscript(t,
+		[]string{
+			"package", "evil-pkg", "", "",
+			"", "", "", "", "", "", "", "",
+		},
+		"bad", "")
+
+	cases := []struct {
+		name  string
+		opts  func(t *testing.T) *submitOptions
+		stdin string
+	}{
+		{"REPORT.md", func(t *testing.T) *submitOptions {
+			return &submitOptions{file: writeTempFile(t, "report.md", validTemplate)}
+		}, ""},
+		{"--from-json FILE.json", func(t *testing.T) *submitOptions {
+			return &submitOptions{fromJSON: writeTempFile(t, "report.json", jsonDoc)}
+		}, ""},
+		{"--from-json -", func(t *testing.T) *submitOptions {
+			return &submitOptions{fromJSON: "-"}
+		}, jsonDoc},
+		{"-i", func(t *testing.T) *submitOptions {
+			return &submitOptions{interactive: true, isTerminal: func() bool { return true }}
+		}, transcript},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &recorder{}
+			srv := newRecordingServer(rec)
+			defer srv.Close()
+
+			deps := testDeps(srv)
+			cmd := newSubmitCmd(deps)
+			var out bytes.Buffer
+			cmd.SetOut(&out)
+			cmd.SetErr(&bytes.Buffer{})
+			cmd.SetIn(strings.NewReader(tc.stdin))
+
+			opts := tc.opts(t)
+			opts.emitJSON = true
+			if err := runSubmit(cmd, deps, opts); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			var req client.SubmitRequest
+			if err := json.Unmarshal(out.Bytes(), &req); err != nil {
+				t.Fatalf("emit-json output not valid JSON: %v\n%s", err, out.String())
+			}
+			if req.ResourceIdentifier != "evil-pkg" {
+				t.Errorf("resource_identifier = %q, want evil-pkg", req.ResourceIdentifier)
+			}
+			if rec.postCount() != 0 {
+				t.Errorf("submit POSTs = %d, want 0", rec.postCount())
+			}
+		})
+	}
+}
+
+// TestSubmit_HelpNamesInputModes asserts `osm submit --help` names the input
+// placeholders and lists the three input modes.
+func TestSubmit_HelpNamesInputModes(t *testing.T) {
+	deps := testDeps(httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	cmd := newSubmitCmd(deps)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("--help: %v", err)
+	}
+	help := out.String()
+
+	for _, want := range []string{
+		"submit [REPORT.md] [flags]",
+		"--from-json FILE.json",
+		"Input modes (give exactly one):",
+		"--template",
+		"--from-json -",
+		"stdin",
+		"examples/threat-report.json",
+		"-i, --interactive       a guided wizard",
+	} {
+		if !strings.Contains(help, want) {
+			t.Errorf("help missing %q:\n%s", want, help)
+		}
+	}
+	for _, stale := range []string{"[FILE]", "--from-json string"} {
+		if strings.Contains(help, stale) {
+			t.Errorf("help still shows %q:\n%s", stale, help)
+		}
 	}
 }
 
@@ -1022,5 +1184,135 @@ func TestSubmit_DuplicateReadsCleanly(t *testing.T) {
 	msg := err.Error() + errBuf.String()
 	if !strings.Contains(msg, "THREAT-999") && !strings.Contains(strings.ToLower(msg), "exist") {
 		t.Errorf("duplicate error not readable (want existing id or 'exists'): %q / stderr=%q", err.Error(), errBuf.String())
+	}
+}
+
+// --- Configured contact email ---
+
+const configuredEmail = "you@example.com"
+
+// contactEmailTranscript answers every wizard field blank except the required
+// ones, with the given contact_email answer.
+func contactEmailTranscript(t *testing.T, contactAnswer string) string {
+	t.Helper()
+	return interactiveTranscript(t,
+		[]string{
+			"package", "@acme/utils", "", "", // report_type..registry
+			"",                     // publisher
+			contactAnswer,          // contact_email
+			"", "", "", "", "", "", // severity_level..tags
+		},
+		"steals npmrc", "http://evil.com")
+}
+
+// runInteractiveWithEmail is runInteractive with a configured default email.
+func runInteractiveWithEmail(t *testing.T, email, transcript string) (report.Report, string) {
+	t.Helper()
+	deps := testDeps(httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	deps.contactEmail = email
+	cmd := newSubmitCmd(deps)
+	var errBuf bytes.Buffer
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&errBuf)
+	cmd.SetIn(strings.NewReader(transcript))
+
+	r, err := collectInteractive(cmd, deps, &submitOptions{
+		interactive: true,
+		isTerminal:  func() bool { return true },
+	})
+	if err != nil {
+		t.Fatalf("collectInteractive: %v", err)
+	}
+	return r, errBuf.String()
+}
+
+func TestSubmit_InteractiveContactEmailDefaultShown(t *testing.T) {
+	_, prompts := runInteractiveWithEmail(t, configuredEmail, contactEmailTranscript(t, ""))
+	if want := "(default: " + configuredEmail + ") > "; !strings.Contains(prompts, want) {
+		t.Errorf("wizard output missing %q:\n%s", want, prompts)
+	}
+}
+
+func TestSubmit_InteractiveContactEmailBlankTakesDefault(t *testing.T) {
+	r, _ := runInteractiveWithEmail(t, configuredEmail, contactEmailTranscript(t, ""))
+	if r.ContactEmail != configuredEmail {
+		t.Errorf("contact_email = %q, want the configured %q", r.ContactEmail, configuredEmail)
+	}
+}
+
+func TestSubmit_InteractiveContactEmailTypedOverridesDefault(t *testing.T) {
+	r, _ := runInteractiveWithEmail(t, configuredEmail, contactEmailTranscript(t, "other@example.com"))
+	if r.ContactEmail != "other@example.com" {
+		t.Errorf("contact_email = %q, want the typed value", r.ContactEmail)
+	}
+}
+
+func TestSubmit_InteractiveContactEmailUnsetHasNoDefault(t *testing.T) {
+	r, prompts := runInteractiveWithEmail(t, "", contactEmailTranscript(t, ""))
+	if r.ContactEmail != "" {
+		t.Errorf("contact_email = %q, want empty when none is configured", r.ContactEmail)
+	}
+	// Only report_type shows a default.
+	if n := strings.Count(prompts, "(default: "); n != 1 {
+		t.Errorf("default prompts = %d, want 1 (report_type only):\n%s", n, prompts)
+	}
+}
+
+// emitJSONContact runs --from-json with report on a deps carrying configured
+// and returns the contact_email in the emitted request.
+func emitJSONContact(t *testing.T, configured, reportJSON string) string {
+	t.Helper()
+	path := writeTempFile(t, "report.json", reportJSON)
+	deps := testDeps(httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	deps.contactEmail = configured
+	cmd := newSubmitCmd(deps)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	if err := runSubmit(cmd, deps, &submitOptions{fromJSON: path, emitJSON: true}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var req client.SubmitRequest
+	if err := json.Unmarshal(out.Bytes(), &req); err != nil {
+		t.Fatalf("emit-json output not valid JSON: %v\n%s", err, out.String())
+	}
+	return req.ContactEmail
+}
+
+const jsonReportBase = `"report_type":"package","resource_identifier":"evil-pkg","registry":"npm","threat_description":"bad"`
+
+func TestSubmit_FromJSONFillsConfiguredContactEmail(t *testing.T) {
+	got := emitJSONContact(t, configuredEmail, `{`+jsonReportBase+`}`)
+	if got != configuredEmail {
+		t.Errorf("contact_email = %q, want the configured %q", got, configuredEmail)
+	}
+}
+
+func TestSubmit_FromJSONReportEmailWins(t *testing.T) {
+	got := emitJSONContact(t, configuredEmail, `{`+jsonReportBase+`,"contact_email":"report@example.com"}`)
+	if got != "report@example.com" {
+		t.Errorf("contact_email = %q, want the report's own value", got)
+	}
+}
+
+func TestSubmit_FromJSONNoConfiguredEmailStaysEmpty(t *testing.T) {
+	if got := emitJSONContact(t, "", `{`+jsonReportBase+`}`); got != "" {
+		t.Errorf("contact_email = %q, want empty", got)
+	}
+}
+
+func TestSubmit_TemplateFileFillsConfiguredContactEmail(t *testing.T) {
+	path := writeTempFile(t, "report.md", validTemplate)
+	deps := testDeps(httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	deps.contactEmail = configuredEmail
+	cmd := newSubmitCmd(deps)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	if err := runSubmit(cmd, deps, &submitOptions{file: path, emitJSON: true}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out.String(), `"contact_email": "`+configuredEmail+`"`) {
+		t.Errorf("emitted request missing the configured email:\n%s", out.String())
 	}
 }

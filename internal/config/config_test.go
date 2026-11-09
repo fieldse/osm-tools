@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -69,5 +70,34 @@ func TestStorePermissions(t *testing.T) {
 	}
 	if perm := fileInfo.Mode().Perm(); perm != 0o600 {
 		t.Errorf("file perm = %o, want 600", perm)
+	}
+}
+
+func TestStoreContactEmailRoundTrip(t *testing.T) {
+	store := NewWithDir(t.TempDir())
+	if err := store.Save(Config{Token: "osm_abc123", ContactEmail: "you@example.com"}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, err := store.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.ContactEmail != "you@example.com" || got.Token != "osm_abc123" {
+		t.Errorf("round-trip = %+v", got)
+	}
+}
+
+func TestStoreOmitsEmptyContactEmail(t *testing.T) {
+	dir := t.TempDir()
+	store := NewWithDir(dir)
+	if err := store.Save(Config{Token: "osm_abc123"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, fileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "contact_email") {
+		t.Errorf("empty contact_email should be omitted, got %s", data)
 	}
 }

@@ -17,5 +17,5 @@
   "first_seen": "2026-07-14",
   "last_seen": "2026-07-16",
   "osv_advisory_url": "https://osv.dev/vulnerability/GHSA-xxxx-xxxx-xxxx",
-  "tags": ["postinstall", "exfil", "credential-theft"]
+  "tags": ["postinstall", "infostealer", "credential-theft"]
 }

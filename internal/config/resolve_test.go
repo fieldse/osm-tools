@@ -41,3 +41,22 @@ func TestResolveToken(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveContactEmail(t *testing.T) {
+	tests := []struct {
+		name, report, file, want string
+	}{
+		{"report wins over config", "report@example.com", "cfg@example.com", "report@example.com"},
+		{"config fills a missing report email", "", "cfg@example.com", "cfg@example.com"},
+		{"whitespace report email counts as missing", "  ", "cfg@example.com", "cfg@example.com"},
+		{"neither set stays empty", "", "", ""},
+		{"report email only", "report@example.com", "", "report@example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ResolveContactEmail(tt.report, tt.file); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

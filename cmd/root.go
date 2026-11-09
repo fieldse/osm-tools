@@ -68,6 +68,8 @@ func buildDeps(deps *appDeps, tokenFlag string) error {
 		return err
 	}
 
+	deps.contactEmail = cfg.ContactEmail
+
 	// ResolveToken returns ErrNoToken when all sources are empty; that's
 	// acceptable at this stage, so swallow it and leave deps.token empty.
 	token, err := config.ResolveToken(tokenFlag, os.Getenv("OSM_API_KEY"), cfg.Token)

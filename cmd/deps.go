@@ -20,6 +20,10 @@ type appDeps struct {
 	// baseURL is the OSM API base URL. Overridable for tests/staging.
 	baseURL string
 
+	// contactEmail is the default contact_email from the config file; empty
+	// when none is saved.
+	contactEmail string
+
 	// limiter is the shared rate limiter. Constructed once so concurrent
 	// requests (e.g. sweep goroutines) contend on a single 60-rpm bucket.
 	limiter *rate.Limiter

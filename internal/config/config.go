@@ -23,7 +23,8 @@ const (
 
 // Config is the on-disk configuration.
 type Config struct {
-	Token string `json:"token,omitempty"`
+	Token        string `json:"token,omitempty"`
+	ContactEmail string `json:"contact_email,omitempty"` // default contact_email for `osm submit`
 }
 
 // Store reads and writes the config file. The base directory is injectable so
